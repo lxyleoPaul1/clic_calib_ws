@@ -2,12 +2,31 @@
 
 #include <ceres/ceres.h>
 
+#include <clic_calib/factor/ceres_local_param.h>
+
 #include <Eigen/Core>
 #include <cmath>
+#include <sophus_lib/so3.hpp>
 #include <vector>
 
 namespace clic_calib {
 namespace test {
+
+/** @brief Right-trivialized perturbation via Ceres LieLocalParameterization (T*exp(δ)). */
+inline void PerturbSo3Block(double* q_xyzw, int tangent_component, double delta) {
+  static const LieLocalParameterization<Sophus::SO3d> kSo3Plus;
+  Eigen::Matrix<double, 3, 1> d = Eigen::Matrix<double, 3, 1>::Zero();
+  d[tangent_component] = delta;
+  kSo3Plus.Plus(q_xyzw, d.data(), q_xyzw);
+}
+
+/** @brief Restore quaternion block from backup xyzw coefficients. */
+inline void RestoreQuaternionBlock(double* q_xyzw,
+                                   const std::vector<double>& backup) {
+  for (int i = 0; i < 4; ++i) {
+    q_xyzw[i] = backup[i];
+  }
+}
 
 inline double RelativeJacobianError(double analytic, double numeric,
                                     double abs_tol = 1e-8) {
@@ -28,7 +47,7 @@ inline void NumericalJacobian(ceres::CostFunction* cost,
   const int num_residuals = cost->num_residuals();
   int total_params = 0;
   for (int s : block_sizes) {
-    total_params += s;
+    total_params += (s == 4) ? 3 : s;
   }
   numeric_jacobian->resize(num_residuals, total_params);
   numeric_jacobian->setZero();
@@ -40,19 +59,46 @@ inline void NumericalJacobian(ceres::CostFunction* cost,
 
   int col = 0;
   for (size_t b = 0; b < block_sizes.size(); ++b) {
-    for (int d = 0; d < block_sizes[b]; ++d) {
+    // Ceres SO(3) knots use xyzw quaternions; analytic Jacobians are 3×4 (tangent × xyz).
+    const int num_perturb =
+        (block_sizes[b] == 4) ? 3 : block_sizes[b];
+    for (int d = 0; d < num_perturb; ++d) {
       double r_m2[32], r_m1[32], r_p1[32], r_p2[32];
       const double h = step;
 
-      param_ptrs[b][d] = backup[b][d] - 2 * h;
+      if (block_sizes[b] == 4) {
+        RestoreQuaternionBlock(param_ptrs[b], backup[b]);
+        PerturbSo3Block(param_ptrs[b], d, -2 * h);
+      } else {
+        param_ptrs[b][d] = backup[b][d] - 2 * h;
+      }
       cost->Evaluate(param_ptrs.data(), r_m2, nullptr);
-      param_ptrs[b][d] = backup[b][d] - h;
+      if (block_sizes[b] == 4) {
+        RestoreQuaternionBlock(param_ptrs[b], backup[b]);
+        PerturbSo3Block(param_ptrs[b], d, -h);
+      } else {
+        param_ptrs[b][d] = backup[b][d] - h;
+      }
       cost->Evaluate(param_ptrs.data(), r_m1, nullptr);
-      param_ptrs[b][d] = backup[b][d] + h;
+      if (block_sizes[b] == 4) {
+        RestoreQuaternionBlock(param_ptrs[b], backup[b]);
+        PerturbSo3Block(param_ptrs[b], d, h);
+      } else {
+        param_ptrs[b][d] = backup[b][d] + h;
+      }
       cost->Evaluate(param_ptrs.data(), r_p1, nullptr);
-      param_ptrs[b][d] = backup[b][d] + 2 * h;
+      if (block_sizes[b] == 4) {
+        RestoreQuaternionBlock(param_ptrs[b], backup[b]);
+        PerturbSo3Block(param_ptrs[b], d, 2 * h);
+      } else {
+        param_ptrs[b][d] = backup[b][d] + 2 * h;
+      }
       cost->Evaluate(param_ptrs.data(), r_p2, nullptr);
-      param_ptrs[b][d] = backup[b][d];
+      if (block_sizes[b] == 4) {
+        RestoreQuaternionBlock(param_ptrs[b], backup[b]);
+      } else {
+        param_ptrs[b][d] = backup[b][d];
+      }
 
       for (int r = 0; r < num_residuals; ++r) {
         (*numeric_jacobian)(r, col) =
@@ -84,8 +130,10 @@ inline bool CompareJacobians(
 
   int col = 0;
   for (size_t b = 0; b < block_sizes.size(); ++b) {
+    const int num_compare =
+        (block_sizes[b] == 4) ? 3 : block_sizes[b];
     for (int r = 0; r < num_residuals; ++r) {
-      for (int d = 0; d < block_sizes[b]; ++d) {
+      for (int d = 0; d < num_compare; ++d) {
         const double analytic = jac_storage[b][r * block_sizes[b] + d];
         const double numeric = num_jac(r, col + d);
         if (RelativeJacobianError(analytic, numeric) > tol) {
@@ -93,7 +141,7 @@ inline bool CompareJacobians(
         }
       }
     }
-    col += block_sizes[b];
+    col += num_compare;
   }
   return true;
 }

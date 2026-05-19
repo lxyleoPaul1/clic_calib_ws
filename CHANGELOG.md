@@ -5,16 +5,25 @@
 ### Implemented (§4.2–§4.6, header-only + GTest)
 
 - `RTKPositionFactor` — whitened 3-D position residual, 4+4 spline knots
-- `SphereImplicitFactor` — scalar point-to-sphere + `t_d^L` chain rule
+- `SphereImplicitFactor` — scalar point-to-sphere + `t_d^L` chain rule (sign fix on ∂/∂t_d)
 - `AprilTagReprojFactor` — 2-D radtan reprojection per corner
 - `TrajectorySmoothnessFactor` — accel + body-rate penalty at sample time
-- `ExtrinsicPriorFactor` — `Log(T^{-1} T_prior)` on SE(3)
+- `ExtrinsicPriorFactor` — `Log(T^{-1} T_prior)` on se(3) tangent (6-D block)
+
+### Fixes (this branch vs initial aa77022)
+
+- RTK factor: Jacobian zero-loop out-of-bounds (segfault in GTest)
+- `rd/so3_spline_view.h`: include `spline_segment.h` for standalone builds
+- `apriltag_reproj_factor.h`: include `sphere_implicit_factor.h` for `sphere_dp_gw_dt`
+- GTest: correct Ceres param layout (4 rot knots then 4 pos knots); SO(3) `LieLocalParameterization` numeric perturbation
+- Residual geometry tests: sphere on-surface / 5 cm off-surface pass
 
 ### Tests
 
 - `test_rtk_factor_jacobian`, `test_sphere_factor_jacobian`,
   `test_apriltag_factor_jacobian`, `test_prior_smoothness_jacobian`
-- `scripts/run_factor_tests.sh`
+- `scripts/run_factor_tests.sh` (catkin devel or rosrun)
+- **Note:** Full Jacobian 1e-5 alignment requires catkin build verification; `TrajectorySmoothnessFactor` passes locally
 
 ## Phase 1 — Data layer & lever-arm infrastructure (`refactor/phase1-data-layer`, 2026-05-20)
 

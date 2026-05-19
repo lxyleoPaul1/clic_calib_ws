@@ -47,6 +47,8 @@ TEST(AprilTagReprojFactor, ZeroResidualAtSyntheticProjection) {
   std::vector<double*> params = {&t_d, q_CW.coeffs().data(), t_CW.data()};
   for (int k = 0; k < 4; ++k) {
     params.push_back(&rot[k * 4]);
+  }
+  for (int k = 0; k < 4; ++k) {
     params.push_back(&pos[k * 3]);
   }
 
@@ -101,6 +103,8 @@ TEST(AprilTagReprojFactor, JacobianMatchesNumericOver20Trials) {
     std::vector<double*> params = {&t_d, q_CW.coeffs().data(), t_CW.data()};
     for (int k = 0; k < 4; ++k) {
       params.push_back(&rot[k * 4]);
+    }
+    for (int k = 0; k < 4; ++k) {
       params.push_back(&pos[k * 3]);
     }
 

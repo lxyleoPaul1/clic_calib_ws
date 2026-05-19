@@ -111,7 +111,7 @@ class SphereImplicitFactor : public ceres::CostFunction,
           sphere_dp_gw_dt(t_ns, spline_meta_, rot_knots, pos_knots, L_B_to_G_,
                           &J_v, &J_rot_unused, &J_omega);
       Eigen::Map<Eigen::Matrix<double, 1, 1>> J_td(jacobians[0]);
-      J_td(0, 0) = inv_sigma_r_ * jac_p_G_L.dot(R_LW * dp_dt);
+      J_td(0, 0) = -inv_sigma_r_ * jac_p_G_L.dot(R_LW * dp_dt);
     }
 
     if (jacobians[1]) {
@@ -133,7 +133,8 @@ class SphereImplicitFactor : public ceres::CostFunction,
             jacobians[idx_r]);
         J_knot.setZero();
         J_knot.block<1, 3>(0, 0) =
-            inv_sigma_r_ * jac_p_G_L.transpose() * (-R_LW * R_hat_L * J_R.d_val_d_knot[i]);
+            inv_sigma_r_ * jac_p_G_L.transpose() *
+            (-R_LW * R_hat_L * J_R.d_val_d_knot[i]);
       }
 
       const size_t idx_p = 3 + knot_num + J_p.start_idx + i;

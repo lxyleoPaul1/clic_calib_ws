@@ -7,6 +7,7 @@
 
 #include <clic_calib/factor/rd_spline_view.h>
 #include <clic_calib/factor/so3_spline_view.h>
+#include <clic_calib/factor/sphere_implicit_factor.h>
 #include <clic_calib/spline/spline_segment.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/sophus_utils.hpp>
@@ -116,7 +117,7 @@ class AprilTagReprojFactor : public ceres::CostFunction,
           apriltag_dp_mw_dt(t_ns, spline_meta_, rot_knots, pos_knots,
                             L_B_to_G_M_, &J_v, &J_rot_unused, &J_omega);
       Eigen::Map<Eigen::Matrix<double, 2, 1>> J_td(jacobians[0]);
-      J_td = inv_sigma_pix_ * J_proj_pC * R_CW * dp_dt;
+      J_td = -inv_sigma_pix_ * J_proj_pC * R_CW * dp_dt;
     }
 
     if (jacobians[1]) {

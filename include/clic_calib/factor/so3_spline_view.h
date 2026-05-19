@@ -20,6 +20,7 @@
 #pragma once
 
 #include <clic_calib/spline/spline_common.h>
+#include <clic_calib/spline/spline_segment.h>
 #include <clic_calib/utils/sophus_utils.hpp>
 
 #include <Eigen/Dense>

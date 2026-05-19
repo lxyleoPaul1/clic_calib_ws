@@ -70,15 +70,15 @@ class RTKPositionFactor : public ceres::CostFunction,
       return true;
     }
 
-    for (size_t i = 0; i < 2 * knot_num; ++i) {
+    for (size_t i = 0; i < knot_num; ++i) {
       if (jacobians[i]) {
         Eigen::Map<Eigen::Matrix<double, 3, 4, Eigen::RowMajor>> J_rot(
             jacobians[i]);
         J_rot.setZero();
       }
-      if (jacobians[i + knot_num]) {
+      if (jacobians[knot_num + i]) {
         Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> J_pos(
-            jacobians[i + knot_num]);
+            jacobians[knot_num + i]);
         J_pos.setZero();
       }
     }

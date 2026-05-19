@@ -1,6 +1,8 @@
 /*
  * clic_calib — §4.6 Extrinsic prior factor (canonical).
  * See doc/DERIVATIONS.md §4.6.
+ *
+ * Parameter block: 6-D se(3) tangent ξ with T_XW = Exp(ξ) (right-trivialized).
  */
 
 #pragma once
@@ -13,18 +15,16 @@
 namespace clic_calib {
 namespace analytic_derivative {
 
-class ExtrinsicPriorFactor : public ceres::SizedCostFunction<6, 4, 3> {
+class ExtrinsicPriorFactor : public ceres::SizedCostFunction<6, 6> {
  public:
-  using Mat3 = Eigen::Matrix3d;
   ExtrinsicPriorFactor(const SE3d& T_XW_prior,
                        const Eigen::Matrix<double, 6, 1>& sqrt_info)
       : T_prior_(T_XW_prior), sqrt_info_(sqrt_info) {}
 
   virtual bool Evaluate(double const* const* parameters, double* residuals,
                         double** jacobians) const override {
-    const Eigen::Map<const Eigen::Quaterniond> q(parameters[0]);
-    const Eigen::Map<const Eigen::Vector3d> t(parameters[1]);
-    const SE3d T_XW(q, t);
+    Eigen::Map<const Eigen::Matrix<double, 6, 1>> xi(parameters[0]);
+    const SE3d T_XW = SE3d::exp(xi);
 
     const SE3d T_err = T_XW.inverse() * T_prior_;
     const Eigen::Matrix<double, 6, 1> log_err = T_err.log();
@@ -32,32 +32,15 @@ class ExtrinsicPriorFactor : public ceres::SizedCostFunction<6, 4, 3> {
     Eigen::Map<Eigen::Matrix<double, 6, 1>> r(residuals);
     r = sqrt_info_.asDiagonal() * log_err;
 
-    if (!jacobians) {
+    if (!jacobians || !jacobians[0]) {
       return true;
     }
 
     Eigen::Matrix<double, 6, 6> J_log;
     Sophus::rightJacobianInvSE3Decoupled(log_err, J_log);
 
-    const Mat3 R_err = T_err.so3().matrix();
-
-    if (jacobians[0]) {
-      Eigen::Map<Eigen::Matrix<double, 6, 4, Eigen::RowMajor>> J_q(jacobians[0]);
-      J_q.setZero();
-      J_q.block<3, 3>(0, 0) =
-          sqrt_info_.head<3>().asDiagonal() * J_log.block<3, 3>(0, 0) * (-R_err);
-      J_q.block<3, 3>(3, 0) =
-          sqrt_info_.tail<3>().asDiagonal() * J_log.block<3, 3>(3, 0) * (-R_err);
-    }
-
-    if (jacobians[1]) {
-      Eigen::Map<Eigen::Matrix<double, 6, 3, Eigen::RowMajor>> J_t(jacobians[1]);
-      J_t.block<3, 3>(0, 0) =
-          sqrt_info_.head<3>().asDiagonal() * J_log.block<3, 3>(0, 3);
-      J_t.block<3, 3>(3, 0) =
-          sqrt_info_.tail<3>().asDiagonal() * J_log.block<3, 3>(3, 3);
-    }
-
+    Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J_xi(jacobians[0]);
+    J_xi = sqrt_info_.asDiagonal() * J_log * (-T_XW.inverse().Adj());
     return true;
   }
 

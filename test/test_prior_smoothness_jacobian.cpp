@@ -20,17 +20,20 @@ TEST(ExtrinsicPriorFactor, JacobianMatchesNumeric) {
   const clic_calib::SE3d T_prior(
       clic_calib::SO3d::rotZ(0.1),
       Eigen::Vector3d(1.0, 0.5, -0.2));
+  const clic_calib::SE3d T_actual =
+      T_prior * clic_calib::SE3d(clic_calib::SO3d::exp(Eigen::Vector3d(0.01, -0.02, 0.005)),
+                                 Eigen::Vector3d(0.02, -0.01, 0.03));
   Eigen::Matrix<double, 6, 1> sqrt_info;
   sqrt_info << 1.0, 1.0, 1.0, 0.5, 0.5, 0.5;
 
   clic_calib::analytic_derivative::ExtrinsicPriorFactor factor(T_prior,
                                                              sqrt_info);
 
-  Eigen::Quaterniond q = T_prior.unit_quaternion();
-  Eigen::Vector3d t = T_prior.translation();
-  std::vector<double*> params = {q.coeffs().data(), t.data()};
+  const Eigen::Matrix<double, 6, 1> xi = T_actual.log();
+  std::vector<double> xi_storage(xi.data(), xi.data() + 6);
+  std::vector<double*> params = {xi_storage.data()};
 
-  std::vector<int> block_sizes = {4, 3};
+  std::vector<int> block_sizes = {6};
   EXPECT_TRUE(clic_calib::test::CompareJacobians(&factor, params, block_sizes,
                                                  1e-5));
 }

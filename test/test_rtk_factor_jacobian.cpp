@@ -39,8 +39,7 @@ TEST(RTKPositionFactor, JacobianMatchesNumericOver20Trials) {
   std::mt19937 rng(42);
   std::uniform_real_distribution<double> pos_dist(-5.0, 5.0);
 
-  clic_calib::SplineSegmentMeta<SplineOrder> meta;
-  InitSplineMeta(&meta);
+  clic_calib::SplineSegmentMeta<SplineOrder> meta(kT0Ns, kDtNs, kNumKnots);
 
   std::vector<double> rot_storage(kNumKnots * 4);
   std::vector<double> pos_storage(kNumKnots * 3);

@@ -35,8 +35,8 @@ TEST(SphereImplicitFactor, ZeroResidualOnSurface) {
   const Eigen::Vector3d L_B_to_G(0.0, 0.0, -0.55);
   const clic_calib::SE3d T_LW;
 
-  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta;
-  InitMeta(&meta);
+  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta(kT0Ns, kDtNs,
+                                                              kNumKnots);
 
   std::vector<double> rot(kNumKnots * 4, 0);
   std::vector<double> pos(kNumKnots * 3, 0);
@@ -59,6 +59,8 @@ TEST(SphereImplicitFactor, ZeroResidualOnSurface) {
   std::vector<double*> params = {&t_d, q_LW.coeffs().data(), t_LW.data()};
   for (int k = 0; k < 4; ++k) {
     params.push_back(&rot[k * 4]);
+  }
+  for (int k = 0; k < 4; ++k) {
     params.push_back(&pos[k * 3]);
   }
 
@@ -82,8 +84,8 @@ TEST(SphereImplicitFactor, ZeroResidualOnSurface) {
 TEST(SphereImplicitFactor, FiveCmOffSurface) {
   const double R_ball = 0.10;
   const Eigen::Vector3d L_B_to_G(0.0, 0.0, -0.55);
-  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta;
-  InitMeta(&meta);
+  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta(kT0Ns, kDtNs,
+                                                              kNumKnots);
 
   std::vector<double> rot(kNumKnots * 4, 0);
   std::vector<double> pos(kNumKnots * 3, 0);
@@ -101,6 +103,8 @@ TEST(SphereImplicitFactor, FiveCmOffSurface) {
   std::vector<double*> params = {&t_d, q_LW.coeffs().data(), t_LW.data()};
   for (int k = 0; k < 4; ++k) {
     params.push_back(&rot[k * 4]);
+  }
+  for (int k = 0; k < 4; ++k) {
     params.push_back(&pos[k * 3]);
   }
 
@@ -124,8 +128,8 @@ TEST(SphereImplicitFactor, JacobianMatchesNumericOver20Trials) {
   std::mt19937 rng(7);
   std::uniform_real_distribution<double> unif(-2.0, 2.0);
 
-  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta;
-  InitMeta(&meta);
+  clic_calib::SplineSegmentMeta<clic_calib::SplineOrder> meta(kT0Ns, kDtNs,
+                                                              kNumKnots);
 
   std::vector<double> rot(kNumKnots * 4);
   std::vector<double> pos(kNumKnots * 3);
@@ -148,8 +152,10 @@ TEST(SphereImplicitFactor, JacobianMatchesNumericOver20Trials) {
 
     std::vector<double*> params = {&t_d, q_LW.coeffs().data(), t_LW.data()};
     for (int k = 0; k < 4; ++k) {
-      params.push_back(&rot[(2 + k) * 4]);
-      params.push_back(&pos[(2 + k) * 3]);
+      params.push_back(&rot[k * 4]);
+    }
+    for (int k = 0; k < 4; ++k) {
+      params.push_back(&pos[k * 3]);
     }
 
     const int64_t bar_t_ns = kT0Ns + static_cast<int64_t>(0.4 * kDtNs);
