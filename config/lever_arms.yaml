@@ -1,15 +1,13 @@
-# Constant lever arms [m] in body frame B (not optimized in main pipeline).
-# See §0 frame definitions: L_{B→A}, L_{B→G}, L_{G→M_j}.
+# Constant lever arms [m] in body frame B (not optimized).
+# body_convention: FRD (x forward, y right, z down) for DJI M3E default.
 
-lever_B_to_A: [0.0, 0.0, 0.12]   # placeholder: B origin to RTK antenna A
-lever_B_to_G: [0.0, 0.0, -0.55]   # carbon rod: body to sphere center G
+body_convention: "FRD"
 
-lever_G_to_M:
-  - id: 0
-    offset: [0.10, 0.0, 0.0]
-  - id: 1
-    offset: [-0.033, 0.095, 0.0]
-  - id: 2
-    offset: [-0.033, -0.095, 0.0]
-  - id: 3
-    offset: [0.0, 0.0, 0.10]
+L_B_to_A: [0.12, 0.05, -0.58]   # RTK antenna phase center in B
+L_B_to_G: [0.00, 0.00, -0.55]    # reflective sphere center in B
+
+L_G_to_M:
+  0: [0.10, 0.00, 0.00]
+  1: [-0.033, 0.094, 0.00]
+  2: [-0.033, -0.047, 0.082]
+  3: [-0.033, -0.047, -0.082]

@@ -30,9 +30,9 @@ int main(int argc, char** argv) {
 
   if (!config_dir.empty()) {
     try {
-      const auto levers =
-          clic_calib::LeverArms::LoadFromYaml(config_dir + "/lever_arms.yaml");
-      std::cout << "Loaded lever_B_to_A: " << levers.lever_b_to_a.transpose()
+      const auto levers = clic_calib::LeverArmConfig::from_yaml(
+          config_dir + "/lever_arms.yaml");
+      std::cout << "Loaded L_B_to_A: " << levers.L_B_to_A.transpose()
                 << "\n";
     } catch (const std::exception& e) {
       std::cerr << "Failed to load lever_arms.yaml: " << e.what() << "\n";

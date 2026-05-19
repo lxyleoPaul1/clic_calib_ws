@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Phase 1 — Data layer & lever-arm infrastructure (`refactor/phase1-data-layer`, 2026-05-20)
+
+### Added
+
+- Sensor types: `RTKMeasurement`, `LiDARTargetObservation`, `AprilTagObservation`, `Frame` enum.
+- `LeverArmConfig::from_yaml` with `L_B_to_A`, `L_G_to_M` map; inline `antenna_position_world`, `sphere_center_world`, `marker_position_world`.
+- `RTKReader` hierarchy: `NMEAReader`, `CSVReader`, `DJIDatLogReader`.
+- Library `clic_calib_data_lib` (lever arms + RTK I/O).
+- GTests: `test_lever_arm`, `test_rtk_reader`; fixtures under `test/data/`.
+
+### Unchanged
+
+- No Ceres factors or optimization wired yet (Phase 2).
+
 ## Phase 0 — Setup and recon (`refactor/phase0-setup`, 2026-05-20)
 
 **Acceptance:** `catkin_make --make-args clic_calib_spline_lib`; no `namespace clic` under `include/clic_calib/` or `src/clic_calib/`; SLAM code under `legacy_clic/` only.

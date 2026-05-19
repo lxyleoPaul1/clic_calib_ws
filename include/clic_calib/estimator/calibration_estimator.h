@@ -26,7 +26,7 @@ class CalibrationEstimator {
   explicit CalibrationEstimator(const CalibrationEstimatorOptions& options);
 
   void SetBodyTrajectory(BodyTrajectory::Ptr trajectory);
-  void AddRtkMeasurements(const std::vector<RtkMeasurement>& measurements);
+  void AddRtkMeasurements(const std::vector<RTKMeasurement>& measurements);
 
   ceres::Solver::Summary Solve();
 

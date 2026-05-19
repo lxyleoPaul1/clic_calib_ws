@@ -13,7 +13,7 @@ void CalibrationEstimator::SetBodyTrajectory(BodyTrajectory::Ptr trajectory) {
 }
 
 void CalibrationEstimator::AddRtkMeasurements(
-    const std::vector<RtkMeasurement>& measurements) {
+    const std::vector<RTKMeasurement>& measurements) {
   (void)measurements;
   // Phase 1: wire RtkPositionFactor
 }

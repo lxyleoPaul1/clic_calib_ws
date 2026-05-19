@@ -1,4 +1,5 @@
 #include <clic_calib/spline/trajectory.h>
+#include <clic_calib/utils/lever_arm.h>
 
 namespace clic_calib {
 
@@ -23,21 +24,18 @@ SO3d BodyTrajectory::rotation_wb(double t_s) const {
 
 Eigen::Vector3d BodyTrajectory::antenna_position_w(
     double t_s, const Eigen::Vector3d& lever_b_to_a) const {
-  const SE3d T_wb = pose_wb(t_s);
-  return T_wb * lever_b_to_a;
+  return antenna_position_world(pose_wb(t_s), lever_b_to_a);
 }
 
 Eigen::Vector3d BodyTrajectory::sphere_center_w(
     double t_s, const Eigen::Vector3d& lever_b_to_g) const {
-  const SE3d T_wb = pose_wb(t_s);
-  return T_wb * lever_b_to_g;
+  return sphere_center_world(pose_wb(t_s), lever_b_to_g);
 }
 
 Eigen::Vector3d BodyTrajectory::marker_center_w(
     double t_s, const Eigen::Vector3d& lever_b_to_g,
     const Eigen::Vector3d& lever_g_to_mj) const {
-  const SE3d T_wb = pose_wb(t_s);
-  return sphere_center_w(t_s, lever_b_to_g) + T_wb.so3() * lever_g_to_mj;
+  return marker_position_world(pose_wb(t_s), lever_b_to_g, lever_g_to_mj);
 }
 
 }  // namespace clic_calib
