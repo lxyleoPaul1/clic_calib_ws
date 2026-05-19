@@ -12,6 +12,7 @@
   <depend>eigen</depend>
   <depend>roscpp</depend>
   <depend>yaml-cpp</depend>
+  <depend>ceres</depend>
 
   <test_depend>gtest</test_depend>
 
