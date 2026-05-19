@@ -1,0 +1,5 @@
+# §4.3 R_ball
+sphere_radius_m: 0.10
+reflectivity_min: 0.5
+apriltag_size_m: 0.05
+apriltag_family: tag36h11

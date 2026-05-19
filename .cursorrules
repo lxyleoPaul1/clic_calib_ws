@@ -1,0 +1,9 @@
+# clic_calib engineering rules (summary)
+# Full text: project CURSOR_MASTER_PROMPT.md §0–§4
+
+- Backbone: split SO(3)+R^3 cumulative cubic B-spline; knot interval Δt.
+- Optimize UAV T_WB(t); roadside T_CW, T_LW static; RTK absolute position (not preintegration).
+- Ceres trajectory factors: analytic Jacobians only + GTest 1e-6 checks.
+- Frames: T_XY maps p_X = T_XY * p_Y. Lever arms from config/lever_arms.yaml, not optimized in main pipeline.
+- Do not delete legacy code; move to legacy_clic/.
+- catkin / ROS Noetic; headers in include/clic_calib/, sources in src/clic_calib/.

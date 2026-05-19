@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>clic_calib</name>
+  <version>0.1.0</version>
+  <description>UAV-RTK roadside sensor calibration (continuous-time B-spline). Phase 0: spline library only.</description>
+
+  <maintainer email="todo@todo.todo">clic_calib</maintainer>
+  <license>GPLv3</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>eigen</depend>
+
+  <!-- Phase 1+ -->
+  <!-- <depend>roscpp</depend> -->
+  <!-- <depend>ceres</depend> -->
+  <!-- <depend>yaml-cpp</depend> -->
+
+  <export/>
+</package>

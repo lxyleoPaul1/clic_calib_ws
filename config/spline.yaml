@@ -1,0 +1,13 @@
+knot_interval_s: 0.05
+
+# §4.5 R_smooth
+alpha_p: 0.01
+alpha_R: 0.01
+
+# §4.7 robust kernels
+lidar_cauchy_scale: 1.0
+camera_huber_delta_px: 2.0
+
+# whitening (§4.3, §4.4)
+sigma_r_m: 0.02
+sigma_pix: 1.0

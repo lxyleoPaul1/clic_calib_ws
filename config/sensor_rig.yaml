@@ -1,0 +1,25 @@
+# Roadside sensors (static). T_XY: p_X = T_XY * p_Y.
+# Initial guesses only; optimized in calibrate_offline.
+
+cameras:
+  - id: 0
+    topic: /roadside_cam_0/image_raw
+    distortion_model: radtan   # or equidistant (OpenCV convention, §4.4)
+    K: [500.0, 0.0, 320.0, 0.0, 500.0, 240.0, 0.0, 0.0, 1.0]  # row-major 3x3, fixed
+    dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+    T_CW_guess:
+      Trans: [0.0, 0.0, 0.0]
+      Rot: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    t_d_C_s: 0.0
+    prior_rot_std_deg: 5.0
+    prior_trans_std_m: 0.5
+
+lidars:
+  - id: 0
+    topic: /roadside_lidar_0/points
+    T_LW_guess:
+      Trans: [0.0, 0.0, 0.0]
+      Rot: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    t_d_L_s: 0.0
+    prior_rot_std_deg: 5.0
+    prior_trans_std_m: 0.5
