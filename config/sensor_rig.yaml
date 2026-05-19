@@ -1,25 +1,25 @@
-# Roadside sensors (static). T_XY: p_X = T_XY * p_Y.
-# Initial guesses only; optimized in calibrate_offline.
-
-cameras:
-  - id: 0
-    topic: /roadside_cam_0/image_raw
-    distortion_model: radtan   # or equidistant (OpenCV convention, §4.4)
-    K: [500.0, 0.0, 320.0, 0.0, 500.0, 240.0, 0.0, 0.0, 1.0]  # row-major 3x3, fixed
-    dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
-    T_CW_guess:
-      Trans: [0.0, 0.0, 0.0]
-      Rot: [1, 0, 0, 0, 1, 0, 0, 0, 1]
-    t_d_C_s: 0.0
-    prior_rot_std_deg: 5.0
-    prior_trans_std_m: 0.5
+# Roadside sensor rig schema (initial guesses; optimized in calibrate_offline).
+# T_XY: p_X = T_XY * p_Y.  initial_T_*: [x, y, z, roll, pitch, yaw] rad or deg per loader.
 
 lidars:
   - id: 0
+    type: "Hesai-Pandar-XT32"
     topic: /roadside_lidar_0/points
-    T_LW_guess:
-      Trans: [0.0, 0.0, 0.0]
-      Rot: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    ranging_sigma_m: 0.02
+    initial_T_LW: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     t_d_L_s: 0.0
+    prior_rot_std_deg: 5.0
+    prior_trans_std_m: 0.5
+
+cameras:
+  - id: 0
+    resolution: [1920, 1080]
+    topic: /roadside_cam_0/image_raw
+    K: [800.0, 800.0, 960.0, 540.0]  # fx, fy, cx, cy
+    distortion_model: "radtan"
+    distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
+    pixel_sigma: 1.0
+    initial_T_CW: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    t_d_C_s: 0.0
     prior_rot_std_deg: 5.0
     prior_trans_std_m: 0.5
