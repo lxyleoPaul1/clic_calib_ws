@@ -28,10 +28,11 @@ TEST(NMEAReader, Parses100LineSample) {
     EXPECT_LE(measurements[i - 1].t_world_, measurements[i].t_world_);
   }
 
-  EXPECT_GT(measurements.front().p_A_W_observed_.norm(), 0.0);
+  // Default NMEAReader uses first fix as local ENU origin → first position is (0,0,0).
+  EXPECT_NEAR(measurements.front().p_A_W_observed_.norm(), 0.0, 1e-6);
+  EXPECT_GT(measurements.back().p_A_W_observed_.norm(), 1.0);
   EXPECT_EQ(measurements.front().fix_status_,
             clic_calib::RTKMeasurement::FixStatus::FIXED);
-  EXPECT_NEAR(measurements.back().p_A_W_observed_.x(), 0.0, 1.0);
 }
 
 TEST(CSVReader, ParsesSample) {
