@@ -8,6 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall")
 find_package(catkin REQUIRED COMPONENTS roscpp)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(Ceres REQUIRED)
 
 find_package(OpenMP)
 if(OPENMP_FOUND)
@@ -26,9 +27,11 @@ catkin_package(
 include_directories(
   include
   src
+  test
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${YAML_CPP_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 
 add_library(clic_calib_spline_lib
@@ -56,26 +59,28 @@ install(TARGETS clic_calib_spline_lib clic_calib_data_lib
 )
 
 ###################################
-## Phase 2+ executables (disabled)
-###################################
-# find_package(Ceres REQUIRED)
-# add_executable(calibrate_offline app/calibrate_offline.cpp)
-# target_link_libraries(calibrate_offline clic_calib_data_lib clic_calib_spline_lib ...)
-
-###################################
-## Tests (Phase 1)
+## Tests
 ###################################
 if(CATKIN_ENABLE_TESTING)
+  set(FACTOR_TEST_DEPS clic_calib_spline_lib ${CERES_LIBRARIES})
+
   catkin_add_gtest(test_lever_arm test/test_lever_arm.cpp)
-  target_link_libraries(test_lever_arm
-    clic_calib_data_lib
-    clic_calib_spline_lib
-    ${YAML_CPP_LIBRARIES}
-  )
+  target_link_libraries(test_lever_arm clic_calib_data_lib clic_calib_spline_lib
+    ${YAML_CPP_LIBRARIES})
 
   catkin_add_gtest(test_rtk_reader test/test_rtk_reader.cpp)
-  target_link_libraries(test_rtk_reader
-    clic_calib_data_lib
-    ${YAML_CPP_LIBRARIES}
-  )
+  target_link_libraries(test_rtk_reader clic_calib_data_lib ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_rtk_factor_jacobian test/test_rtk_factor_jacobian.cpp)
+  target_link_libraries(test_rtk_factor_jacobian ${FACTOR_TEST_DEPS})
+
+  catkin_add_gtest(test_sphere_factor_jacobian test/test_sphere_factor_jacobian.cpp)
+  target_link_libraries(test_sphere_factor_jacobian ${FACTOR_TEST_DEPS})
+
+  catkin_add_gtest(test_apriltag_factor_jacobian test/test_apriltag_factor_jacobian.cpp)
+  target_link_libraries(test_apriltag_factor_jacobian ${FACTOR_TEST_DEPS})
+
+  catkin_add_gtest(test_prior_smoothness_jacobian
+    test/test_prior_smoothness_jacobian.cpp)
+  target_link_libraries(test_prior_smoothness_jacobian ${FACTOR_TEST_DEPS})
 endif()
