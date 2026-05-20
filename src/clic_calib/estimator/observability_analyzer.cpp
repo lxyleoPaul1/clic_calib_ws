@@ -75,10 +75,12 @@ Eigen::MatrixXd SchurComplementExtrinsic(const Eigen::MatrixXd& F,
   const Eigen::MatrixXd F_rr = ExtractSubmatrix(F, rest, rest);
 
   const Eigen::LDLT<Eigen::MatrixXd> ldlt(F_rr);
-  if (ldlt.info() != Eigen::Success) {
-    throw std::runtime_error("SchurComplementExtrinsic: F_rr factorization failed");
+  Eigen::MatrixXd F_rr_inv_F_re;
+  if (ldlt.info() == Eigen::Success) {
+    F_rr_inv_F_re = ldlt.solve(F_re);
+  } else {
+    F_rr_inv_F_re = F_rr.completeOrthogonalDecomposition().solve(F_re);
   }
-  const Eigen::MatrixXd F_rr_inv_F_re = ldlt.solve(F_re);
   return F_ee - F_er * F_rr_inv_F_re;
 }
 

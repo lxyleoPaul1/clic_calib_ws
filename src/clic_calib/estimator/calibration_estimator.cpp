@@ -252,9 +252,11 @@ bool GetActiveKnotPointers(const BodyTrajectory& traj, int64_t t_ns,
 
 void ExtendTrajectoryToCover(BodyTrajectory* traj, double t_start_s,
                              double t_end_s) {
+  constexpr double kTimeOffsetMarginS = 1.0;
+  const double t_hi = t_end_s + kTimeOffsetMarginS + 2.0 * traj->getDt();
+
   const int64_t t0_ns = static_cast<int64_t>(t_start_s * BodyTrajectory::kSToNs);
-  const int64_t t1_ns =
-      static_cast<int64_t>((t_end_s + 2.0 * traj->getDt()) * BodyTrajectory::kSToNs);
+  const int64_t t1_ns = static_cast<int64_t>(t_hi * BodyTrajectory::kSToNs);
   if (traj->numKnots() == 0) {
     traj->extendKnotsTo(t0_ns, SO3d(Eigen::Quaterniond::Identity()),
                         Eigen::Vector3d::Zero());
@@ -277,6 +279,28 @@ Eigen::Vector3d LeverArmToMarkerCorner(const LeverArmConfig& levers,
     L += cit->second[static_cast<size_t>(corner_idx)];
   }
   return L;
+}
+
+std::pair<double, double> TimeOffsetBoundsForBarTimestamps(
+    const std::vector<double>& bar_t_s, const BodyTrajectory& traj) {
+  if (bar_t_s.empty()) {
+    return {-0.5, 0.5};
+  }
+  const double min_bar =
+      *std::min_element(bar_t_s.begin(), bar_t_s.end());
+  const double max_bar =
+      *std::max_element(bar_t_s.begin(), bar_t_s.end());
+  const double t_min = traj.minTimeNs() * NS_TO_S + 1e-3;
+  const double t_max = traj.maxTimeNs() * NS_TO_S - 1e-3;
+  double td_lower = max_bar - t_max;
+  double td_upper = min_bar - t_min;
+  td_lower = std::max(td_lower, -1.0);
+  td_upper = std::min(td_upper, 1.0);
+  if (td_lower >= td_upper) {
+    const double mid = 0.5 * (min_bar + max_bar) - 0.5 * (t_min + t_max);
+    return {mid - 0.05, mid + 0.05};
+  }
+  return {td_lower, td_upper};
 }
 
 }  // namespace
@@ -420,6 +444,12 @@ struct CalibrationEstimator::Impl {
                                  ? lidar_cfg.at(sensor_id).ranging_sigma_m
                                  : spline.sigma_r_m;
 
+      std::vector<double> bar_times;
+      bar_times.reserve(kv.second.size());
+      for (const auto& scan : kv.second) {
+        bar_times.push_back(scan.t_sensor_);
+      }
+
       for (const auto& scan : kv.second) {
         const int64_t bar_t_ns =
             static_cast<int64_t>(scan.t_sensor_ * S_TO_NS);
@@ -449,6 +479,13 @@ struct CalibrationEstimator::Impl {
         }
       }
 
+      const auto td_bounds =
+          TimeOffsetBoundsForBarTimestamps(bar_times, *trajectory);
+      if (prob->HasParameterBlock(&state.t_d)) {
+        prob->SetParameterLowerBound(&state.t_d, 0, td_bounds.first);
+        prob->SetParameterUpperBound(&state.t_d, 0, td_bounds.second);
+      }
+
       owned_costs.push_back(
           std::make_unique<analytic_derivative::ExtrinsicPriorFactor>(
               state.prior, state.prior_sqrt_info));
@@ -472,6 +509,12 @@ struct CalibrationEstimator::Impl {
       }
       ExtrinsicState& state = sit->second;
       const CameraRigConfig& cam_cfg = camera_cfg.at(sensor_id);
+
+      std::vector<double> bar_times;
+      bar_times.reserve(kv.second.size());
+      for (const auto& det : kv.second) {
+        bar_times.push_back(det.t_sensor_);
+      }
 
       for (const auto& det : kv.second) {
         for (int corner = 0; corner < 4; ++corner) {
@@ -502,6 +545,13 @@ struct CalibrationEstimator::Impl {
             SetLocalParamSO3(prob, q);
           }
         }
+      }
+
+      const auto td_bounds =
+          TimeOffsetBoundsForBarTimestamps(bar_times, *trajectory);
+      if (prob->HasParameterBlock(&state.t_d)) {
+        prob->SetParameterLowerBound(&state.t_d, 0, td_bounds.first);
+        prob->SetParameterUpperBound(&state.t_d, 0, td_bounds.second);
       }
 
       owned_costs.push_back(
@@ -635,6 +685,16 @@ void CalibrationEstimator::set_initial_extrinsic_T_CW(int sensor_id,
   impl_->camera_state[sensor_id].SetFromSE3(T_CW);
 }
 
+void CalibrationEstimator::set_extrinsic_prior_T_LW(int sensor_id,
+                                                      const SE3d& T_LW_prior) {
+  impl_->lidar_state[sensor_id].prior = T_LW_prior;
+}
+
+void CalibrationEstimator::set_extrinsic_prior_T_CW(int sensor_id,
+                                                      const SE3d& T_CW_prior) {
+  impl_->camera_state[sensor_id].prior = T_CW_prior;
+}
+
 void CalibrationEstimator::initialize_trajectory_from_rtk() {
   impl_->SeedTrajectoryKnotsFromRtk();
 
@@ -722,6 +782,14 @@ void CalibrationEstimator::build_problem_for_analysis() {
 }
 
 const ceres::Problem& CalibrationEstimator::problem() const {
+  if (!impl_->problem) {
+    throw std::runtime_error(
+        "problem() called before solve() or build_problem_for_analysis()");
+  }
+  return *impl_->problem;
+}
+
+ceres::Problem& CalibrationEstimator::problem() {
   if (!impl_->problem) {
     throw std::runtime_error(
         "problem() called before solve() or build_problem_for_analysis()");

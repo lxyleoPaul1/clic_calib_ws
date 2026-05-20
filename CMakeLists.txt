@@ -64,6 +64,7 @@ add_library(clic_calib_data_lib
   src/clic_calib/utils/lever_arm.cpp
   src/clic_calib/io/rtk_reader.cpp
   src/clic_calib/io/observation_archive.cpp
+  src/clic_calib/io/calibration_result.cpp
 )
 target_link_libraries(clic_calib_data_lib
   ${catkin_LIBRARIES}
@@ -100,6 +101,14 @@ target_link_libraries(analyze_observability
   ${YAML_CPP_LIBRARIES}
 )
 
+add_executable(calibrate_offline app/calibrate_offline.cpp)
+target_link_libraries(calibrate_offline
+  clic_calib_estimator_lib
+  clic_calib_data_lib
+  ${CERES_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
+)
+
 add_executable(preprocess_rosbag app/preprocess_rosbag.cpp)
 target_link_libraries(preprocess_rosbag
   clic_calib_target_lib
@@ -116,7 +125,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 )
 
 install(TARGETS clic_calib_spline_lib clic_calib_data_lib clic_calib_target_lib
-  clic_calib_estimator_lib analyze_observability preprocess_rosbag
+  clic_calib_estimator_lib analyze_observability calibrate_offline preprocess_rosbag
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -157,6 +166,11 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_observability_synthetic
     test/test_observability_synthetic.cpp)
   target_link_libraries(test_observability_synthetic
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_patent_z_accuracy test/test_patent_z_accuracy.cpp)
+  target_link_libraries(test_patent_z_accuracy
     clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
     ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
 

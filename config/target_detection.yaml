@@ -1,0 +1,14 @@
+# Phase 4 target detection (see CURSOR_MASTER_PROMPT.md §10)
+
+intensity_min: 180.0
+cluster_tolerance_m: 0.3
+min_cluster_size: 30
+radius_prior_m: 0.10
+ransac_inlier_threshold_m: 0.02
+min_inlier_ratio: 0.80
+max_radius_deviation_ratio: 0.15
+roi_half_extent_m: 0.8
+
+apriltag_family: "tag36h11"
+quad_decimate: 2.0
+nthreads: 2

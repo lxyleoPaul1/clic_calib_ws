@@ -1,0 +1,99 @@
+% clic_calib supplementary — Section 4 mathematical specification
+% Copy into paper supplementary material.
+
+\section{Mathematical specification}
+\label{sec:clic-math}
+
+\subsection{Frame and lever-arm compositions}
+\label{sec:frames}
+
+Given the B-spline state at time $t$:
+\begin{align}
+  \mathbf{p}_{WB}(t) &\in \mathbb{R}^3 && \text{UAV body position in world $W$} \\
+  \mathbf{R}_{WB}(t) &\in \mathrm{SO}(3) && \text{UAV body orientation in world $W$}
+\end{align}
+World-frame positions of derived points:
+\begin{align}
+  \mathbf{p}_A^W(t)     &= \mathbf{p}_{WB}(t) + \mathbf{R}_{WB}(t)\,\mathbf{L}_{B\to A} \\
+  \mathbf{p}_G^W(t)     &= \mathbf{p}_{WB}(t) + \mathbf{R}_{WB}(t)\,\mathbf{L}_{B\to G} \\
+  \mathbf{p}_{M_j}^W(t) &= \mathbf{p}_G^W(t) + \mathbf{R}_{WB}(t)\,\mathbf{L}_{G\to M_j}
+\end{align}
+All lever arms $\mathbf{L}_*$ are expressed in body frame $B$ (constants from configuration).
+
+\subsection{RTK position residual}
+\label{sec:rtk}
+
+Observation $\tilde{\mathbf{p}}_A^k$ at clock $t_k^R$ with covariance $\boldsymbol{\Sigma}_k^R$:
+\begin{equation}
+  \mathbf{r}_k^R = \tilde{\mathbf{p}}_A^k - \bigl[\mathbf{p}_{WB}(t_k^R) + \mathbf{R}_{WB}(t_k^R)\,\mathbf{L}_{B\to A}\bigr]
+\end{equation}
+Whitened residual: $\mathbf{e}_k^R = \mathrm{chol}(\boldsymbol{\Sigma}_k^R)^{-1}\,\mathbf{r}_k^R$.
+No robust kernel (FIXED fixes only).
+
+\subsection{LiDAR point-to-sphere-surface residual}
+\label{sec:lidar}
+
+For LiDAR point $\mathbf{q}_{k,\ell}^L$ at scan timestamp $\bar{t}_k^L$:
+\begin{align}
+  t_k^L &= \bar{t}_k^L - t_d^L \\
+  \mathbf{p}_G^W(t_k^L) &= \mathbf{p}_{WB}(t_k^L) + \mathbf{R}_{WB}(t_k^L)\,\mathbf{L}_{B\to G} \\
+  \mathbf{p}_G^L &= \mathbf{R}_{LW}\,\mathbf{p}_G^W(t_k^L) + \mathbf{t}_{LW} \\
+  r_{k,\ell}^L &= \|\mathbf{q}_{k,\ell}^L - \mathbf{p}_G^L\| - R_{\mathrm{ball}}
+\end{align}
+Whitening: divide by $\sigma_r$. Robust kernel: Cauchy (scale $1.0$).
+Time-offset derivative:
+\begin{equation}
+  \frac{\partial r}{\partial t_d^L} = -\frac{(\mathbf{q}-\mathbf{p}_G^L)^\top}{\|\mathbf{q}-\mathbf{p}_G^L\|}\,\mathbf{R}_{LW}\,\frac{\mathrm{d}\mathbf{p}_G^W}{\mathrm{d}t}
+\end{equation}
+with $\mathrm{d}\mathbf{p}_G^W/\mathrm{d}t = \dot{\mathbf{p}}_{WB}(t) + \mathbf{R}_{WB}(t)\,[\boldsymbol{\omega}_{WB}(t)]_\times\,\mathbf{L}_{B\to G}$ (analytic spline derivatives).
+
+\subsection{AprilTag reprojection residual}
+\label{sec:apriltag}
+
+For marker $j$ at image timestamp $\bar{t}_k^C$, observed pixel $\tilde{\mathbf{u}}_{k,j}$:
+\begin{align}
+  t_k^C &= \bar{t}_k^C - t_d^C \\
+  \mathbf{p}_{M_j}^W &= \mathbf{p}_{WB}(t_k^C) + \mathbf{R}_{WB}(t_k^C)\,(\mathbf{L}_{B\to G}+\mathbf{L}_{G\to M_j}) \\
+  \mathbf{p}_{M_j}^C &= \mathbf{R}_{CW}\,\mathbf{p}_{M_j}^W + \mathbf{t}_{CW} \\
+  \mathbf{u}_{\mathrm{pred}} &= \pi(\mathbf{K}\,\mathbf{p}_{M_j}^C) \\
+  \mathbf{r}_{k,j}^C &= \tilde{\mathbf{u}}_{k,j} - \mathbf{u}_{\mathrm{pred}}
+\end{align}
+Whitening: $\sigma_{\mathrm{pix}}$. Robust kernel: Huber ($\delta=2$ px). Each marker is an independent residual.
+
+\subsection{Trajectory smoothness regularizer}
+\label{sec:smooth}
+
+\begin{equation}
+  R_{\mathrm{smooth}} = \alpha_p \sum_k \|\ddot{\mathbf{p}}_{WB}(t_k)\|^2\,\Delta t + \alpha_R \sum_k \|\boldsymbol{\omega}_{WB}(t_k)\|^2\,\Delta t
+\end{equation}
+Sampled at knot midpoints.
+
+\subsection{Extrinsic prior factor}
+\label{sec:prior}
+
+For each roadside sensor $X\in\{C,L\}$ with prior $T_{XW}^{\mathrm{prior}}$:
+\begin{equation}
+  \mathbf{r}_X^{\mathrm{prior}} = \log\!\bigl(T_{XW}^{-1}\,T_{XW}^{\mathrm{prior}}\bigr) \in \mathbb{R}^6
+\end{equation}
+Whitened by diagonal covariance (e.g.\ $5^\circ$ rotation, $0.5$\,m translation std).
+
+\subsection{Total cost}
+\label{sec:cost}
+
+\begin{equation}
+  J(\boldsymbol{\theta}) = \sum_k \|\mathbf{r}_k^R\|_{\boldsymbol{\Sigma}_k^R}^2
+  + \sum_{k,\ell} \rho_C\!\left(\|r_{k,\ell}^L/\sigma_r\|^2\right)
+  + \sum_{k,j} \rho_H\!\left(\|\mathbf{r}_{k,j}^C/\sigma_{\mathrm{pix}}\|^2\right)
+  + R_{\mathrm{smooth}} + \sum_X \|\mathbf{r}_X^{\mathrm{prior}}\|^2
+\end{equation}
+with $\boldsymbol{\theta}=\{T_{CW},T_{LW},t_d^C,t_d^L,\{\mathbf{p}_k^{WB}\},\{\mathbf{R}_k^{WB}\}\}$, $\rho_C=\mathrm{Cauchy}(1.0)$, $\rho_H=\mathrm{Huber}(2.0)$.
+
+\subsection{Observability monitor}
+\label{sec:observability}
+
+Marginal information on extrinsics (Schur complement of trajectory and time offsets):
+\begin{equation}
+  \mathbf{F}_{\mathrm{ext}} = \mathbf{F}_{\mathrm{ext,ext}} - \mathbf{F}_{\mathrm{ext,\theta_{\mathrm{rest}}}}\,\mathbf{F}_{\mathrm{\theta_{\mathrm{rest}},\theta_{\mathrm{rest}}}}^{-1}\,\mathbf{F}_{\mathrm{\theta_{\mathrm{rest}},\mathrm{ext}}}
+\end{equation}
+Report $\lambda_{\min}(\mathbf{F}_{\mathrm{ext}})$, condition number, and $\mathrm{PDOP}_{\mathrm{ext}}$.
+If $\lambda_{\min}$ is below threshold or $\mathrm{PDOP}_{\mathrm{ext}}$ is above threshold, recommend additional flight along the worst eigenvector direction.

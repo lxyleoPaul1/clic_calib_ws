@@ -4,7 +4,36 @@
 Code review will reject any residual that paraphrases or shortcuts these formulae.  
 Naming: `T_XY` maps `p_X = T_XY * p_Y` (see `include/clic_calib/sensor_data/frame_definitions.h`).
 
+## Paper supplementary (LaTeX)
+
+Clean LaTeX for §4.1–§4.8 is in [`doc/supplementary_section4.tex`](supplementary_section4.tex) — copy into the paper supplementary `\input{}`.
+
 ---
+
+## LaTeX (§4.1–§4.8)
+
+```latex
+% See doc/supplementary_section4.tex for the full standalone file.
+\subsection{Frame and lever-arm compositions}
+\mathbf{p}_A^W(t) = \mathbf{p}_{WB}(t) + \mathbf{R}_{WB}(t)\,\mathbf{L}_{B\to A}
+
+\subsection{RTK position residual}
+\mathbf{r}_k^R = \tilde{\mathbf{p}}_A^k - [\mathbf{p}_{WB}(t_k^R) + \mathbf{R}_{WB}(t_k^R)\,\mathbf{L}_{B\to A}]
+
+\subsection{LiDAR point-to-sphere residual}
+r_{k,\ell}^L = \|\mathbf{q}_{k,\ell}^L - \mathbf{p}_G^L\| - R_{\mathrm{ball}}
+
+\subsection{AprilTag reprojection}
+\mathbf{r}_{k,j}^C = \tilde{\mathbf{u}}_{k,j} - \pi(\mathbf{K}\,(\mathbf{R}_{CW}\mathbf{p}_{M_j}^W + \mathbf{t}_{CW}))
+
+\subsection{Total cost and observability}
+J(\boldsymbol{\theta}) = \sum \|\mathbf{r}^R\|^2 + \sum \rho_C(\|r^L/\sigma_r\|^2) + \sum \rho_H(\|\mathbf{r}^C/\sigma_{\mathrm{pix}}\|^2) + R_{\mathrm{smooth}} + \sum \|\mathbf{r}^{\mathrm{prior}}\|^2
+\mathbf{F}_{\mathrm{ext}} = \mathbf{F}_{ee} - \mathbf{F}_{er}\mathbf{F}_{rr}^{-1}\mathbf{F}_{re}
+```
+
+---
+
+## Markdown reference (implementation)
 
 ## §4.1 Frame & lever-arm compositions
 

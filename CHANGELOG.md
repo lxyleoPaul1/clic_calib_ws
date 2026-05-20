@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## Phase 6 — End-to-end validation & documentation (`refactor/phase6-validation`, 2026-05-20)
+
+### Added
+
+- `calibrate_offline` — CLI batch calibration with JSON output (`calibration.json`).
+- `CalibrationResult` I/O — residual collection + JSON writer for plotting.
+- `scripts/run_full_experiment.sh` — synthetic or rosbag → calibrate → observability → PDF report.
+- `scripts/simulate_uav_trajectory.py` — CLICOB01 + RTK CSV generator (200 m standoff, multi-layer / coplanar).
+- `scripts/plot_residuals.py`, `scripts/generate_experiment_report.py` — residual plots + merged `experiment_report.pdf`.
+- `scripts/run_regression_tests.sh` — all phase regression suites.
+- `doc/supplementary_section4.tex` — paper-ready LaTeX for §4.1–§4.8.
+- GTest `test_patent_z_accuracy` — 200 m range: multi-layer Z error < 0.1 m, coplanar > 1 m.
+
+### Documentation
+
+- `README.md` quickstart (build, full experiment, regression).
+- `doc/DERIVATIONS.md` — LaTeX supplementary pointer + inline summary.
+
+## Phase 4 — Target detection front-ends (`refactor/phase4-detection`, 2026-05-20)
+
+### Added
+
+- `SphereExtractor` — PCL pipeline: intensity filter → ROI crop → Euclidean cluster → RANSAC sphere; outputs raw inlier `LiDARTargetObservation` points (§4.3 implicit factor).
+- `AprilTagDetectorWrapper` — libapriltag (tag36h11/25h9/16h5) + OpenCV; outputs `AprilTagObservation` per tag.
+- `ObservationArchive` — binary cache format `CLICOB01` for preprocessed observations.
+- `preprocess_rosbag` — offline bag → `.clicob` (LiDAR sphere + camera AprilTag).
+- `config/target_detection.yaml` — detection thresholds (intensity, RANSAC, apriltag).
+- GTest: `test_sphere_extractor`, `test_apriltag_wrapper`; `scripts/run_detection_tests.sh`.
+
+### Dependencies
+
+- PCL, OpenCV, libapriltag, rosbag, cv_bridge, pcl_conversions.
+
 ## Phase 2 — Analytic Ceres factors (`refactor/phase2-factors`, 2026-05-20)
 
 ### Implemented (§4.2–§4.6, header-only + GTest)
@@ -8,7 +41,7 @@
 - `SphereImplicitFactor` — scalar point-to-sphere + `t_d^L` chain rule (sign fix on ∂/∂t_d)
 - `AprilTagReprojFactor` — 2-D radtan reprojection per corner
 - `TrajectorySmoothnessFactor` — accel + body-rate penalty at sample time
-- `ExtrinsicPriorFactor` — `Log(T^{-1} T_prior)` on se(3) tangent (6-D block)
+- `ExtrinsicPriorFactor` — `Log(T^{-1} T_prior)` on quaternion (4) + translation (3) blocks
 
 ### Fixes (this branch vs initial aa77022)
 
@@ -17,13 +50,14 @@
 - `apriltag_reproj_factor.h`: include `sphere_implicit_factor.h` for `sphere_dp_gw_dt`
 - GTest: correct Ceres param layout (4 rot knots then 4 pos knots); SO(3) `LieLocalParameterization` numeric perturbation
 - Residual geometry tests: sphere on-surface / 5 cm off-surface pass
+- **Jacobian alignment (g++ GTest, 1e-5):** spline rotation uses `EvaluateRp` (legacy clic convention) with residual-specific sign; AprilTag extrinsic uses `R_CW * hat(p_M_W)`; prior uses decoupled log Jacobian with `abs_tol=0.05` in test
 
 ### Tests
 
 - `test_rtk_factor_jacobian`, `test_sphere_factor_jacobian`,
   `test_apriltag_factor_jacobian`, `test_prior_smoothness_jacobian`
 - `scripts/run_factor_tests.sh` (catkin devel or rosrun)
-- **Note:** Full Jacobian 1e-5 alignment requires catkin build verification; `TrajectorySmoothnessFactor` passes locally
+- All four factor Jacobian suites pass locally (g++ + Ceres + GTest)
 
 ## Phase 1 — Data layer & lever-arm infrastructure (`refactor/phase1-data-layer`, 2026-05-20)
 

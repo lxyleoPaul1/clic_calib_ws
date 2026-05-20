@@ -6,8 +6,8 @@ lidars:
     type: "Hesai-Pandar-XT32"
     topic: /roadside_lidar_0/points
     ranging_sigma_m: 0.02
-    initial_T_LW: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    t_d_L_s: 0.0
+    initial_T_LW: [3.0, -1.0, 0.5, 0.0, -0.15, 0.0]
+    t_d_L_s: 0.03
     prior_rot_std_deg: 5.0
     prior_trans_std_m: 0.5
 
@@ -15,11 +15,11 @@ cameras:
   - id: 0
     resolution: [1920, 1080]
     topic: /roadside_cam_0/image_raw
-    K: [800.0, 800.0, 960.0, 540.0]  # fx, fy, cx, cy
+    K: [600.0, 600.0, 320.0, 240.0]  # fx, fy, cx, cy
     distortion_model: "radtan"
     distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
     pixel_sigma: 1.0
-    initial_T_CW: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    t_d_C_s: 0.0
+    initial_T_CW: [2.0, 1.5, 0.2, 0.1, 0.0, 0.0]
+    t_d_C_s: -0.015
     prior_rot_std_deg: 5.0
     prior_trans_std_m: 0.5

@@ -40,6 +40,8 @@ class CalibrationEstimator {
 
   void set_initial_extrinsic_T_LW(int sensor_id, const SE3d& T_LW);
   void set_initial_extrinsic_T_CW(int sensor_id, const SE3d& T_CW);
+  void set_extrinsic_prior_T_LW(int sensor_id, const SE3d& T_LW_prior);
+  void set_extrinsic_prior_T_CW(int sensor_id, const SE3d& T_CW_prior);
 
   /** @brief RTK + smoothness only; initializes spline knots before full solve. */
   void initialize_trajectory_from_rtk();
@@ -57,6 +59,7 @@ class CalibrationEstimator {
 
   /** @brief Valid after @ref build_problem_for_analysis or @ref solve. */
   const ceres::Problem& problem() const;
+  ceres::Problem& problem();
 
   /** @brief Classify local parameter indices for §4.8 Schur complement. */
   AnalysisParameterLayout analysis_parameter_layout() const;
