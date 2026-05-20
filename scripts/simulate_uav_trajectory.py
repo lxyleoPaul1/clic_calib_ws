@@ -11,6 +11,19 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import yaml
+
+
+def load_noise_model(config_dir: Path) -> dict:
+    path = config_dir / "noise_model.yaml"
+    with path.open(encoding="utf-8") as f:
+        node = yaml.safe_load(f)
+    return {
+        "rtk_sigma_h": float(node["rtk"]["sigma_horizontal_m"]),
+        "rtk_sigma_v": float(node["rtk"]["sigma_vertical_m"]),
+        "lidar_sigma_r": float(node["lidar"]["ranging_sigma_m"]),
+        "camera_sigma_pix": float(node["camera"]["pixel_sigma"]),
+    }
 
 # Lever arms from config/lever_arms.yaml (FRD body frame).
 L_B_TO_A = np.array([0.12, 0.05, -0.58])
@@ -121,6 +134,7 @@ def generate(
     multilayer: bool,
     range_m: float,
     include_camera: bool,
+    noise: dict,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -129,6 +143,7 @@ def generate(
     T_CW = se3(rot_x(0.1), np.array([2.0, 1.5, 0.2]))
 
     rng = np.random.default_rng(123)
+    rtk_sigmas = np.array([noise["rtk_sigma_h"], noise["rtk_sigma_h"], noise["rtk_sigma_v"]])
     rtk_rows: list[list] = []
     lidar_obs: list[tuple[float, int, list[np.ndarray]]] = []
     tag_obs: list[tuple[float, int, int, float, list[np.ndarray]]] = []
@@ -136,11 +151,12 @@ def generate(
     for t in np.arange(0.2, 4.9, 0.1):
         R, p_wb = pose_wb(t, multilayer, range_m)
         p_a = p_wb + R @ L_B_TO_A
-        noise = rng.normal(0.0, [0.01, 0.01, 0.02])
-        p_a_noisy = p_a + noise
+        noise_vec = rng.normal(0.0, rtk_sigmas)
+        p_a_noisy = p_a + noise_vec
         lat, lon, alt = enu_to_lla(p_a_noisy[0], p_a_noisy[1], p_a_noisy[2])
         rtk_rows.append([f"{t:.3f}", f"{lat:.9f}", f"{lon:.9f}", f"{alt:.4f}",
-                         "0.01", "0.01", "0.02", "FIXED"])
+                         f"{noise['rtk_sigma_h']:.4f}", f"{noise['rtk_sigma_h']:.4f}",
+                         f"{noise['rtk_sigma_v']:.4f}", "FIXED"])
 
     for t in np.arange(0.5, 4.6, 0.4):
         R, p_wb = pose_wb(t, multilayer, range_m)
@@ -181,7 +197,8 @@ def generate(
 
     meta_path = output_dir / "synthetic_meta.txt"
     meta_path.write_text(
-        f"multilayer={multilayer}\nrange_m={range_m}\ninclude_camera={include_camera}\n",
+        f"multilayer={multilayer}\nrange_m={range_m}\ninclude_camera={include_camera}\n"
+        f"noise_model={noise}\n",
         encoding="utf-8",
     )
     print(f"Wrote {rtk_path} ({len(rtk_rows)} RTK rows)")
@@ -220,12 +237,18 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    script_dir = Path(__file__).resolve().parent
+    config_dir = script_dir.parent / "config"
+    noise = load_noise_model(config_dir)
+    print(f"[simulate_uav_trajectory] noise model: {noise}")
+
     multilayer = not args.coplanar
     generate(
         args.output_dir,
         multilayer=multilayer,
         range_m=args.range_m,
         include_camera=not args.no_camera,
+        noise=noise,
     )
     return 0
 

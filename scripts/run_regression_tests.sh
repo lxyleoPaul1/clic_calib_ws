@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run all phase regression tests (factor, pipeline, observability, patent, diagnostics).
+# Run phase regression: factor Jacobians, smoke (noise-free), noise-regime sweeps.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,32 +38,45 @@ if [[ ! -f "${WS}/devel/lib/clic_calib/test_rtk_factor_jacobian" ]] \
   USE_LOCAL=1
 fi
 
-if [[ "${USE_LOCAL}" -eq 1 ]]; then
-  run_script run_factor_tests.sh
-  for t in test_full_pipeline_synthetic test_observability_synthetic \
-           test_patent_z_accuracy test_td_single_variable; do
+run_one() {
+  local t="$1"
+  if [[ "${USE_LOCAL}" -eq 1 ]]; then
     run_bin "${LOCAL_BIN}/${t}"
-  done
+  elif [[ -f "${WS}/devel/lib/clic_calib/${t}" ]]; then
+    run_bin "${WS}/devel/lib/clic_calib/${t}"
+  elif [[ -x "${LOCAL_BIN}/${t}" ]]; then
+    run_bin "${LOCAL_BIN}/${t}"
+  else
+    echo "[FAIL] ${t} (not built)"
+    fail=$((fail + 1))
+  fi
+}
+
+echo "==== Factor Jacobian tests ===="
+run_script run_factor_tests.sh
+
+echo "==== Smoke (noise-free, strict — fast wiring check) ===="
+run_one test_full_pipeline_synthetic
+
+echo "==== Noise-regime characterization (N=20 seed sweeps — paper tables) ===="
+for t in test_pipeline_noise_sweep test_patent_z_accuracy test_prior_ablation; do
+  run_one "${t}"
+done
+
+echo "==== Observability structure (noise-free FIM ablation) ===="
+run_one test_observability_synthetic
+
+echo "==== Diagnostics ===="
+if [[ "${USE_LOCAL}" -eq 1 ]]; then
+  run_one test_td_single_variable
 else
-  run_script run_factor_tests.sh
-  for t in test_full_pipeline_synthetic test_observability_synthetic \
-           test_patent_z_accuracy; do
-    if [[ -f "${WS}/devel/lib/clic_calib/${t}" ]]; then
-      run_bin "${WS}/devel/lib/clic_calib/${t}"
-    elif [[ -x "${LOCAL_BIN}/${t}" ]]; then
-      run_bin "${LOCAL_BIN}/${t}"
-    else
-      echo "[FAIL] ${t} (not built)"
-      fail=$((fail + 1))
-    fi
-  done
   if [[ -x "${LOCAL_BIN}/test_td_single_variable" ]]; then
-    run_bin "${LOCAL_BIN}/test_td_single_variable"
+    run_one test_td_single_variable
   elif [[ -f "${WS}/devel/lib/clic_calib/test_td_single_variable" ]]; then
-    run_bin "${WS}/devel/lib/clic_calib/test_td_single_variable"
+    run_one test_td_single_variable
   else
     bash "${ROOT}/scripts/compile_local_tests.sh"
-    run_bin "${LOCAL_BIN}/test_td_single_variable"
+    run_one test_td_single_variable
   fi
 fi
 
@@ -75,4 +88,5 @@ else
 fi
 
 echo "==== Regression summary: passed=${pass} failed=${fail} ===="
+echo "Paper numbers: doc/results/synthetic_evaluation.md"
 exit "${fail}"

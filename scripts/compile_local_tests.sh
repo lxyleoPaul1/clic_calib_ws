@@ -41,6 +41,7 @@ EST_SRCS=(
   "${ROOT}/src/clic_calib/estimator/observability_analyzer.cpp"
   "${ROOT}/src/clic_calib/spline/trajectory.cpp"
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp"
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
   "${ROOT}/src/clic_calib/io/rtk_reader.cpp"
   "${ROOT}/src/clic_calib/io/observation_archive.cpp"
   "${ROOT}/src/clic_calib/io/calibration_result.cpp"
@@ -68,8 +69,10 @@ done
 
 EST_TESTS=(
   test_full_pipeline_synthetic
+  test_pipeline_noise_sweep
   test_observability_synthetic
   test_patent_z_accuracy
+  test_prior_ablation
 )
 
 for t in "${EST_TESTS[@]}"; do
@@ -80,6 +83,10 @@ build_one test_td_single_variable \
   "${ROOT}/test/diagnostic/test_td_single_variable.cpp" \
   "${TRAJ_OBJ}" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp"
+
+build_one test_noise_regime_local_sweep \
+  "${ROOT}/test/experiments/test_noise_regime_local_sweep.cpp" \
+  "${EST_SRCS[@]}"
 
 echo "[compile] done → ${BUILD_DIR}/"
 

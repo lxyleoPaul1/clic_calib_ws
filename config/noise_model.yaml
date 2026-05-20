@@ -1,0 +1,12 @@
+# Single source of truth for synthetic noise injection and factor whitening.
+# Simulator (scripts/simulate_uav_trajectory.py) and CalibrationEstimator must stay in sync.
+
+rtk:
+  sigma_horizontal_m: 0.01
+  sigma_vertical_m: 0.02
+
+lidar:
+  ranging_sigma_m: 0.02
+
+camera:
+  pixel_sigma: 1.0

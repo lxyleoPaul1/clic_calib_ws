@@ -2,6 +2,7 @@
 #include <clic_calib/spline/spline_segment.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/lever_arm.h>
+#include <clic_calib/utils/noise_model.h>
 #include <clic_calib/utils/sophus_utils.hpp>
 
 #include <gtest/gtest.h>
@@ -52,7 +53,8 @@ clic_calib::BodyTrajectory MakeGroundTruthTrajectory() {
 
 }  // namespace
 
-TEST(FullPipelineSynthetic, RecoversExtrinsicsTimeOffsetsAndTrajectory) {
+TEST(SmokeTest, NoiseFreeFullPipelineRecoversGroundTruth) {
+  // Fast smoke: noise-free identity check (Jacobian / wiring). Not a noise evaluation.
   const auto levers =
       clic_calib::LeverArmConfig::from_yaml(ConfigDir() + "/lever_arms.yaml");
 
@@ -69,17 +71,19 @@ TEST(FullPipelineSynthetic, RecoversExtrinsicsTimeOffsetsAndTrajectory) {
   clic_calib::PinholeIntrinsics K{600.0, 600.0, 320.0, 240.0};
   clic_calib::RadtanDistortion dist;
 
+  const clic_calib::NoiseModel noise =
+      clic_calib::NoiseModel::FromConfigDir(ConfigDir());
+
   // Noise-free RTK: LiDAR / camera observations are also exact, so the strict
-  // regression tests the joint MLE without cross-modal noise mismatch. Noisy RTK
-  // (σ_xy=1 cm, σ_z=2 cm) is exercised in Python E2E and test_patent_z_accuracy.
+  // regression tests the joint MLE without cross-modal noise mismatch. Whitening
+  // still uses config/noise_model.yaml (same as realistic pipelines).
   std::vector<clic_calib::RTKMeasurement> rtk;
   for (double t = 0.2; t <= 4.8; t += 0.1) {
     clic_calib::RTKMeasurement m;
     m.t_world_ = t;
     m.fix_status_ = clic_calib::RTKMeasurement::FixStatus::FIXED;
     m.p_A_W_observed_ = gt_traj.antenna_position_w(t, levers.L_B_to_A);
-    m.covariance_.setZero();
-    m.covariance_.diagonal() << 1e-4, 1e-4, 4e-4;
+    m.covariance_ = noise.RtkPositionCovariance();
     rtk.push_back(m);
   }
 

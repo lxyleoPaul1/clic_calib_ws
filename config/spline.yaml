@@ -8,9 +8,7 @@ alpha_R: 0.01
 lidar_cauchy_scale: 1.0
 camera_huber_delta_px: 2.0
 
-# whitening (§4.3, §4.4)
-sigma_r_m: 0.02
-sigma_pix: 1.0
+# Observation noise whitening: config/noise_model.yaml
 
 # Hard clamp on |t_d| [s] (intersected with spline-support bounds).
 t_d_max_abs_s: 0.1

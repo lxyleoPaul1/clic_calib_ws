@@ -62,6 +62,7 @@ target_link_libraries(clic_calib_spline_lib ${catkin_LIBRARIES})
 
 add_library(clic_calib_data_lib
   src/clic_calib/utils/lever_arm.cpp
+  src/clic_calib/utils/noise_model.cpp
   src/clic_calib/io/rtk_reader.cpp
   src/clic_calib/io/observation_archive.cpp
   src/clic_calib/io/calibration_result.cpp
@@ -163,6 +164,12 @@ if(CATKIN_ENABLE_TESTING)
     clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
     ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
 
+  catkin_add_gtest(test_pipeline_noise_sweep
+    test/test_pipeline_noise_sweep.cpp)
+  target_link_libraries(test_pipeline_noise_sweep
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
   catkin_add_gtest(test_observability_synthetic
     test/test_observability_synthetic.cpp)
   target_link_libraries(test_observability_synthetic
@@ -171,6 +178,11 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_patent_z_accuracy test/test_patent_z_accuracy.cpp)
   target_link_libraries(test_patent_z_accuracy
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_prior_ablation test/test_prior_ablation.cpp)
+  target_link_libraries(test_prior_ablation
     clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
     ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
 

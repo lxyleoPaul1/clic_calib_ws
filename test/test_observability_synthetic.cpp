@@ -2,6 +2,7 @@
 #include <clic_calib/estimator/observability_analyzer.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/lever_arm.h>
+#include <clic_calib/utils/noise_model.h>
 #include <clic_calib/utils/sophus_utils.hpp>
 
 #include <gtest/gtest.h>
@@ -67,7 +68,8 @@ struct SyntheticScenario {
 struct ScenarioOptions {
   bool vertical_motion = true;
   bool include_camera = true;
-  double rtk_z_noise = 0.02;
+  /** If >= 0, scale RTK z injection only (whitening always from noise_model.yaml). */
+  double rtk_z_injection_scale = 1.0;
 };
 
 SyntheticScenario MakeSyntheticScenario(const clic_calib::BodyTrajectory& gt_traj,
@@ -86,9 +88,10 @@ SyntheticScenario MakeSyntheticScenario(const clic_calib::BodyTrajectory& gt_tra
   clic_calib::PinholeIntrinsics K{600.0, 600.0, 320.0, 240.0};
   clic_calib::RadtanDistortion dist;
 
+  const clic_calib::NoiseModel noise =
+      clic_calib::NoiseModel::FromConfigDir(ConfigDir());
+
   std::mt19937 rng(123);
-  std::normal_distribution<double> noise_xy(0.0, 0.01);
-  std::normal_distribution<double> noise_z(0.0, options.rtk_z_noise);
 
   SyntheticScenario scenario;
   for (double t = 0.2; t <= 4.8; t += 0.1) {
@@ -96,10 +99,10 @@ SyntheticScenario MakeSyntheticScenario(const clic_calib::BodyTrajectory& gt_tra
     m.t_world_ = t;
     m.fix_status_ = clic_calib::RTKMeasurement::FixStatus::FIXED;
     const Eigen::Vector3d p_A = gt_traj.antenna_position_w(t, levers.L_B_to_A);
-    m.p_A_W_observed_ =
-        p_A + Eigen::Vector3d(noise_xy(rng), noise_xy(rng), noise_z(rng));
-    m.covariance_.setZero();
-    m.covariance_.diagonal() << 1e-4, 1e-4, 4e-4;
+    Eigen::Vector3d rtk_noise = noise.SampleRtkNoise(rng);
+    rtk_noise.z() *= options.rtk_z_injection_scale;
+    m.p_A_W_observed_ = p_A + rtk_noise;
+    m.covariance_ = noise.RtkPositionCovariance();
     scenario.rtk.push_back(m);
   }
 
@@ -181,7 +184,7 @@ double DominanceOnPitchOrZTranslation(
 
 TEST(ObservabilitySynthetic, MultiLayerFlightIsWellObserved) {
   const SyntheticScenario scenario = MakeSyntheticScenario(
-      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 0.02});
+      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
   const AnalysisResult result = RunObservabilityAnalysis(scenario);
   const auto& report = result.report;
 
@@ -194,7 +197,7 @@ TEST(ObservabilitySynthetic, MultiLayerFlightIsWellObserved) {
 
 TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
   const SyntheticScenario multi = MakeSyntheticScenario(
-      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 0.02});
+      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
   const SyntheticScenario coplanar = MakeSyntheticScenario(
       MakeCoplanarTrajectory(),
       ScenarioOptions{false, false, 0.0});

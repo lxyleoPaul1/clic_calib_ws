@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## Experiments — noise-regime evaluation (`experiments/noise-regime`, 2026-05-20)
+
+### Added
+
+- `config/noise_model.yaml` + `NoiseModel` C++ loader — single source for RTK / LiDAR / camera σ.
+- `test/test_pipeline_noise_sweep.cpp` — N=20 full-modality noise characterization.
+- `test/test_patent_z_accuracy.cpp` — paired multi-layer vs coplanar @ 200 m (seeds 2000–2019).
+- `test/test_prior_ablation.cpp` + `set_extrinsic_prior_std()` / `set_extrinsic_prior_enabled()`.
+- `test/experiments/noise_regime_common.hpp` — shared sweep scenario builders.
+- `doc/results/synthetic_evaluation.md` — paper tables + honest claim routing.
+- `scripts/run_regression_tests.sh` — smoke + noise sweeps + observability + diagnostics layout.
+
+### Changed
+
+- `test_full_pipeline_synthetic` demoted to noise-free smoke (`SmokeTest.*`).
+- Simulator and estimator both read `noise_model.yaml`; duplicate noise keys removed from other yaml.
+- `doc/diagnostics/time_offset_observability.md`, `doc/supplementary_section4.tex` updated.
+- `README.md` — full project documentation (structure, config, test tiers, limitations).
+
+### Findings (synthetic, N=20)
+
+- Joint pipeline traj RMS **91.7 ± 16.3 mm** under realistic noise — not cm-accurate.
+- 200 m Z-error: coplanar **9.996 mm** vs multi-layer **2.973 mm** (**3.36×**).
+- Weak / no extrinsic prior → **~3.3×** larger \|T_LW\| error vs default prior.
+
 ## Debug session — time-offset observability (`debug/time-offset`, 2026-05-20)
 
 ### Root cause

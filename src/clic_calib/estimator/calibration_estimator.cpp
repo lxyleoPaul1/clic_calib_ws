@@ -8,6 +8,7 @@
 #include <clic_calib/factor/trajectory_smoothness_factor.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/lever_arm.h>
+#include <clic_calib/utils/noise_model.h>
 
 #include <yaml-cpp/yaml.h>
 
@@ -26,8 +27,6 @@ struct SplineConfig {
   double knot_interval_s = 0.05;
   double alpha_p = 0.01;
   double alpha_R = 0.01;
-  double sigma_r_m = 0.02;
-  double sigma_pix = 1.0;
   double lidar_cauchy_scale = 1.0;
   double camera_huber_delta_px = 2.0;
   /** Hard clamp on |t_d| [s]; intersected with spline-support bounds. */
@@ -41,7 +40,6 @@ struct TargetGeometryConfig {
 
 struct LidarRigConfig {
   int id = 0;
-  double ranging_sigma_m = 0.02;
   SE3d initial_T_LW;
   double initial_t_d_s = 0.0;
   double prior_rot_std_deg = 5.0;
@@ -52,7 +50,6 @@ struct CameraRigConfig {
   int id = 0;
   PinholeIntrinsics K;
   RadtanDistortion dist;
-  double pixel_sigma = 1.0;
   SE3d initial_T_CW;
   double initial_t_d_s = 0.0;
   double prior_rot_std_deg = 5.0;
@@ -87,12 +84,6 @@ SplineConfig LoadSplineConfig(const std::string& path) {
   }
   if (node["alpha_R"]) {
     cfg.alpha_R = node["alpha_R"].as<double>();
-  }
-  if (node["sigma_r_m"]) {
-    cfg.sigma_r_m = node["sigma_r_m"].as<double>();
-  }
-  if (node["sigma_pix"]) {
-    cfg.sigma_pix = node["sigma_pix"].as<double>();
   }
   if (node["lidar_cauchy_scale"]) {
     cfg.lidar_cauchy_scale = node["lidar_cauchy_scale"].as<double>();
@@ -137,9 +128,6 @@ void LoadSensorRig(const std::string& path, std::map<int, LidarRigConfig>* lidar
     for (const auto& L : node["lidars"]) {
       LidarRigConfig cfg;
       cfg.id = L["id"].as<int>();
-      if (L["ranging_sigma_m"]) {
-        cfg.ranging_sigma_m = L["ranging_sigma_m"].as<double>();
-      }
       if (L["initial_T_LW"]) {
         cfg.initial_T_LW = SE3FromXyzRpy(L["initial_T_LW"].as<std::vector<double>>());
       }
@@ -170,9 +158,6 @@ void LoadSensorRig(const std::string& path, std::map<int, LidarRigConfig>* lidar
         if (d.size() >= 4) {
           cfg.dist = RadtanDistortion{d[0], d[1], d[2], d[3]};
         }
-      }
-      if (C["pixel_sigma"]) {
-        cfg.pixel_sigma = C["pixel_sigma"].as<double>();
       }
       if (C["initial_T_CW"]) {
         cfg.initial_T_CW = SE3FromXyzRpy(C["initial_T_CW"].as<std::vector<double>>());
@@ -314,6 +299,7 @@ std::pair<double, double> TimeOffsetBoundsForBarTimestamps(
 struct CalibrationEstimator::Impl {
   std::string config_dir;
   LeverArmConfig levers;
+  NoiseModel noise_model;
   SplineConfig spline;
   TargetGeometryConfig target;
   std::map<int, LidarRigConfig> lidar_cfg;
@@ -321,6 +307,8 @@ struct CalibrationEstimator::Impl {
 
   std::map<int, ExtrinsicState> lidar_state;
   std::map<int, ExtrinsicState> camera_state;
+
+  bool enable_extrinsic_prior_factors = true;
 
   std::vector<RTKMeasurement> rtk;
   std::map<int, std::vector<LiDARTargetObservation>> lidar_obs;
@@ -447,9 +435,7 @@ struct CalibrationEstimator::Impl {
         continue;
       }
       ExtrinsicState& state = sit->second;
-      const double sigma_r = lidar_cfg.count(sensor_id)
-                                 ? lidar_cfg.at(sensor_id).ranging_sigma_m
-                                 : spline.sigma_r_m;
+      const double sigma_r = noise_model.lidar_ranging_sigma_m;
 
       std::vector<double> bar_times;
       bar_times.reserve(kv.second.size());
@@ -496,8 +482,10 @@ struct CalibrationEstimator::Impl {
       owned_costs.push_back(
           std::make_unique<analytic_derivative::ExtrinsicPriorFactor>(
               state.prior, state.prior_sqrt_info));
-      prob->AddResidualBlock(owned_costs.back().get(), nullptr,
-                             state.q.coeffs().data(), state.t.data());
+      if (enable_extrinsic_prior_factors) {
+        prob->AddResidualBlock(owned_costs.back().get(), nullptr,
+                               state.q.coeffs().data(), state.t.data());
+      }
       SetLocalParamSO3(prob, state.q.coeffs().data());
     }
   }
@@ -540,7 +528,7 @@ struct CalibrationEstimator::Impl {
           owned_costs.push_back(
               std::make_unique<analytic_derivative::AprilTagReprojFactor>(
                   bar_t_ns, det.corners_pixel_[corner], L_B_to_G_M, cam_cfg.K,
-                  cam_cfg.dist, cam_cfg.pixel_sigma, meta));
+                  cam_cfg.dist, noise_model.camera_pixel_sigma, meta));
           auto* factor = owned_costs.back().get();
           std::vector<double*> blocks = {&state.t_d, state.q.coeffs().data(),
                                          state.t.data()};
@@ -564,8 +552,10 @@ struct CalibrationEstimator::Impl {
       owned_costs.push_back(
           std::make_unique<analytic_derivative::ExtrinsicPriorFactor>(
               state.prior, state.prior_sqrt_info));
-      prob->AddResidualBlock(owned_costs.back().get(), nullptr,
-                             state.q.coeffs().data(), state.t.data());
+      if (enable_extrinsic_prior_factors) {
+        prob->AddResidualBlock(owned_costs.back().get(), nullptr,
+                               state.q.coeffs().data(), state.t.data());
+      }
       SetLocalParamSO3(prob, state.q.coeffs().data());
     }
   }
@@ -648,6 +638,8 @@ CalibrationEstimator::CalibrationEstimator(const std::string& config_path)
 
   const std::string prefix = impl_->config_dir + "/";
   impl_->levers = LeverArmConfig::from_yaml(prefix + "lever_arms.yaml");
+  impl_->noise_model = NoiseModel::FromConfigDir(impl_->config_dir);
+  impl_->noise_model.Log();
   impl_->spline = LoadSplineConfig(prefix + "spline.yaml");
   impl_->target = LoadTargetGeometry(prefix + "target_geometry.yaml");
   LoadSensorRig(prefix + "sensor_rig.yaml", &impl_->lidar_cfg, &impl_->camera_cfg);
@@ -716,6 +708,22 @@ void CalibrationEstimator::set_extrinsic_prior_T_LW(int sensor_id,
 void CalibrationEstimator::set_extrinsic_prior_T_CW(int sensor_id,
                                                       const SE3d& T_CW_prior) {
   impl_->camera_state[sensor_id].prior = T_CW_prior;
+}
+
+void CalibrationEstimator::set_extrinsic_prior_std(double rot_std_deg,
+                                                     double trans_std_m) {
+  const Eigen::Matrix<double, 6, 1> info =
+      PriorSqrtInfo(rot_std_deg, trans_std_m);
+  for (auto& kv : impl_->lidar_state) {
+    kv.second.prior_sqrt_info = info;
+  }
+  for (auto& kv : impl_->camera_state) {
+    kv.second.prior_sqrt_info = info;
+  }
+}
+
+void CalibrationEstimator::set_extrinsic_prior_enabled(bool enabled) {
+  impl_->enable_extrinsic_prior_factors = enabled;
 }
 
 void CalibrationEstimator::initialize_trajectory_from_rtk() {

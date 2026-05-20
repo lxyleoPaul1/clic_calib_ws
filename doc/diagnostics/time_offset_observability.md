@@ -52,15 +52,19 @@ Reproduced on Python synthetic data (`seed=123`, 200 m):
 
 ---
 
-## 4. STEP 4 — Strict tolerance reinstatement
+## 4. STEP 4 — Strict tolerance reinstatement (noise-free smoke only)
 
-Unified paths (yaml init, prior, `t_d` bounds, RTK warm-start). Local regression uses
-**noise-free RTK** so LiDAR/camera (exact) and RTK are self-consistent; noisy RTK is
-reserved for 200 m patent / Python E2E (`doc/DERIVATIONS.md` §Unified setup).
+Unified paths (yaml init, prior, `t_d` bounds, RTK warm-start). The test
+`SmokeTest.NoiseFreeFullPipelineRecoversGroundTruth` (`test_full_pipeline_synthetic.cpp`)
+uses **noise-free RTK + exact LiDAR/camera** — it is a **fast wiring / identity check**,
+**not** a methodological noise evaluation.
 
-### Verified precision (representative run, seed=123)
+**Paper-grade numbers:** see [synthetic_evaluation.md](../results/synthetic_evaluation.md)
+(STEP 2–4 seed sweeps under `config/noise_model.yaml`).
 
-**Local strict regression** (`test_full_pipeline_synthetic`):
+### Verified precision (noise-free smoke, single deterministic run)
+
+**Local smoke regression** (`SmokeTest.NoiseFreeFullPipelineRecoversGroundTruth`):
 
 | Quantity | Recovered | Tolerance | |
 |----------|-----------|-----------|---|
@@ -72,29 +76,31 @@ reserved for 200 m patent / Python E2E (`doc/DERIVATIONS.md` §Unified setup).
 | `t_d^C` | −0.015 s | ± 2 ms | PASS |
 | Trajectory RMS | **1.7 cm** | < 3 cm | PASS |
 
-**200 m realistic pipeline** (`test_patent_z_accuracy`, noisy RTK, multi-layer):
+### Superseded 200 m single-seed report (do not cite)
 
-| Quantity | Value | Claim |
-|----------|-------|-------|
-| `\|T_LW.t.z − gt.z\|` | **0.0 m** (this run) | < 0.1 m |
-| `t_d^L` | 0.030 s | reported, not 2 ms gated at 200 m |
-| Coplanar + 2 m Z prior bias | Z error > 1 m | observability ablation |
+Earlier `test_patent_z_accuracy` printed **Z-error = 0.0 m** for one seed — display
+truncation / init=prior=GT pinning, **not** methodological accuracy. Replaced by
+20-seed sweep in [synthetic_evaluation.md §3](../results/synthetic_evaluation.md):
+multi-layer **z_err = 2.973 ± 5.277 mm** (max 21.156 mm).
 
-**FIM / observability** (`test_observability_synthetic`):
+**FIM / observability** (`test_observability_synthetic`, noise-free RTK at linearization):
 
 - Multi-layer: `λ_min(F_ext) > 0`, condition number ≪ 10⁸.
 - Coplanar ablation: `λ_min` ≪ multi-layer, PDOP_ext larger, pitch/Z dominate worst eigenvector.
+
+Under **realistic noise**, FIM posterior σ **does not** match Monte Carlo spread — see
+[synthetic_evaluation.md §3.4](../results/synthetic_evaluation.md).
 
 ---
 
 ## 5. RMS vs 200 m Z-error (reviewer FAQ)
 
-These metrics are **not contradictory**:
+These metrics are **not contradictory**, but **neither alone proves noise-regime accuracy**:
 
-- **Trajectory RMS** — mean 3-D body position error over the observed window (all axes, local or at standoff).
-- **200 m Z-error** — `\|T_LW.t.z − gt.z\|` after calibration; dominated by **pitch uncertainty × horizontal range** (§1.3 DERIVATIONS).
+- **Trajectory RMS** — mean 3-D body position error over the observed window (all axes, local or at standoff). Under realistic noise: **91.7 ± 16.3 mm** locally ([synthetic_evaluation.md §2](../results/synthetic_evaluation.md)).
+- **200 m Z-error** — `\|T_LW.t.z − gt.z\|` after calibration; under multi-layer noise: **2.973 ± 5.277 mm** mean ([synthetic_evaluation.md §3](../results/synthetic_evaluation.md)).
 
-Cm-level RMS confirms joint spline + RTK + vision + LiDAR fit; sub-decimetre Z at 200 m confirms vertical extrinsic observability under multi-layer excitation.
+The old claim that cm-level RMS implies sub-decimetre Z at 200 m applied only to the **noise-free smoke** path and is **withdrawn** for the noisy regime.
 
 ---
 

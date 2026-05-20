@@ -97,3 +97,12 @@ Marginal information on extrinsics (Schur complement of trajectory and time offs
 \end{equation}
 Report $\lambda_{\min}(\mathbf{F}_{\mathrm{ext}})$, condition number, and $\mathrm{PDOP}_{\mathrm{ext}}$.
 If $\lambda_{\min}$ is below threshold or $\mathrm{PDOP}_{\mathrm{ext}}$ is above threshold, recommend additional flight along the worst eigenvector direction.
+
+\paragraph{Empirical validation (synthetic, 2026-05).}
+Noise parameters are centralized in \texttt{config/noise\_model.yaml} (RTK $\sigma_h{=}10$\,mm, $\sigma_v{=}20$\,mm; LiDAR $\sigma_r{=}20$\,mm; camera $\sigma_{\mathrm{pix}}{=}1$\,px).
+Monte Carlo tables ($N{=}20$ seeds) are in \texttt{doc/results/synthetic\_evaluation.md}.
+Under realistic noise with yaml init${=}$prior${=}$GT:
+(i)~coplanar 200\,m Z-error mean exceeds multi-layer by $3.36\times$;
+(ii)~$\lambda_{\min}(\mathbf{F}_{\mathrm{ext}})$ from the linearized FIM does \emph{not} match empirical error spread (posterior $\sigma$ over-estimates by orders of magnitude);
+(iii)~extrinsic recovery requires the default coarse prior ($5^\circ$, $0.5$\,m)---weak or absent prior degrades $\|T_{LW}\|$ error by $\sim\!3.3\times$.
+See prior-ablation table in the results document before citing §\,\ref{sec:prior} or §\,\ref{sec:observability} as fully validated in noise.

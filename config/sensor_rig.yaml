@@ -1,11 +1,11 @@
 # Roadside sensor rig schema (initial guesses; optimized in calibrate_offline).
+# Observation noise: config/noise_model.yaml (not duplicated here).
 # T_XY: p_X = T_XY * p_Y.  initial_T_*: [x, y, z, roll, pitch, yaw] rad or deg per loader.
 
 lidars:
   - id: 0
     type: "Hesai-Pandar-XT32"
     topic: /roadside_lidar_0/points
-    ranging_sigma_m: 0.02
     initial_T_LW: [3.0, -1.0, 0.5, 0.0, -0.15, 0.0]
     t_d_L_s: 0.03
     prior_rot_std_deg: 5.0
@@ -18,7 +18,6 @@ cameras:
     K: [600.0, 600.0, 320.0, 240.0]  # fx, fy, cx, cy
     distortion_model: "radtan"
     distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
-    pixel_sigma: 1.0
     initial_T_CW: [2.0, 1.5, 0.2, 0.1, 0.0, 0.0]
     t_d_C_s: -0.015
     prior_rot_std_deg: 5.0

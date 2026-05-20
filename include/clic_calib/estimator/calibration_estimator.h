@@ -43,6 +43,12 @@ class CalibrationEstimator {
   void set_extrinsic_prior_T_LW(int sensor_id, const SE3d& T_LW_prior);
   void set_extrinsic_prior_T_CW(int sensor_id, const SE3d& T_CW_prior);
 
+  /** @brief Uniform prior σ on all extrinsic blocks (rot [deg], trans [m]). */
+  void set_extrinsic_prior_std(double rot_std_deg, double trans_std_m);
+
+  /** @brief When false, ExtrinsicPriorFactor blocks are omitted (RTK-only gauge). */
+  void set_extrinsic_prior_enabled(bool enabled);
+
   /** @brief RTK + smoothness only; initializes spline knots before full solve. */
   void initialize_trajectory_from_rtk();
 
