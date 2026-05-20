@@ -76,21 +76,21 @@ class So3SplineView {
 
     VecN coeff = blending_matrix_ * p;
 
-    Eigen::Map<SO3 const> p0(knots[s]);
+    Eigen::Map<SO3 const> p0(knots[0]);
     SO3 res = p0;
 
     Mat3 J_helper;
 
     if (J) {
-      J->start_idx = s;
+      J->start_idx = 0;
       J_helper = res.matrix();
     }
 
     Mat3 R_tmp[DEG];
     Mat3 Jr_inv_delta[DEG], Jr_kdelta[DEG];
     for (int i = 0; i < DEG; i++) {
-      Eigen::Map<SO3 const> p0(knots[s + i]);
-      Eigen::Map<SO3 const> p1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> p0(knots[i]);
+      Eigen::Map<SO3 const> p1(knots[i + 1]);
 
       SO3 r01 = p0.inverse() * p1;
       Vec3 delta = r01.log();
@@ -140,7 +140,7 @@ class So3SplineView {
     VecN coeff = blending_matrix_ * p;
 
     if (J) {
-      J->start_idx = s;
+      J->start_idx = 0;
     }
 
     SO3 A_accum_inv;           // A_3_inv * A2_inv * A1_inv
@@ -150,8 +150,8 @@ class So3SplineView {
     A_post_inv[DEG] = A_accum_inv.matrix();  // Identity Matrix
 
     for (int i = DEG - 1; i >= 0; i--) {
-      Eigen::Map<SO3 const> R0(knots[s + i]);
-      Eigen::Map<SO3 const> R1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> R0(knots[i]);
+      Eigen::Map<SO3 const> R1(knots[i + 1]);
 
       Vec3 delta = (R0.inverse() * R1).log();
       Vec3 kdelta = delta * coeff[i + 1];
@@ -165,7 +165,7 @@ class So3SplineView {
       }
     }
 
-    Eigen::Map<SO3 const> Ri(knots[s]);
+    Eigen::Map<SO3 const> Ri(knots[0]);
     SO3 res = Ri * A_accum_inv.inverse();
 
     if (J) {
@@ -206,9 +206,9 @@ class So3SplineView {
     VecN coeff = blending_matrix_ * p;
 
     if (J) {
-      J->start_idx = s;
+      J->start_idx = 0;
     }
-    Eigen::Map<SO3 const> Ri(knots[s]);
+    Eigen::Map<SO3 const> Ri(knots[0]);
 
     SO3 Si_A_pre[DEG + 1];
     Mat3 Ri_A_pre[DEG + 1];  // Ri, Ri*A1, Ri*A1*A2, Ri*A1*A2*A3
@@ -217,8 +217,8 @@ class So3SplineView {
     Si_A_pre[0] = Ri;
 //    Ri_A_pre[0] = Ri.matrix();
     for (int i = 0; i < DEG; i++) {  // 0 1 2
-      Eigen::Map<SO3 const> R0(knots[s + i]);
-      Eigen::Map<SO3 const> R1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> R0(knots[i]);
+      Eigen::Map<SO3 const> R1(knots[i + 1]);
 
       Vec3 delta = (R0.inverse() * R1).log();
       Vec3 kdelta = delta * coeff[i + 1];
@@ -275,9 +275,9 @@ class So3SplineView {
     VecN coeff = blending_matrix_ * p;
 
     if (J) {
-      J->start_idx = s;
+      J->start_idx = 0;
     }
-    Eigen::Map<SO3 const> Ri(knots[s]);
+    Eigen::Map<SO3 const> Ri(knots[0]);
 
     SO3 A_accum_inv;  // A_3_inv * A2_inv * A1_inv
     // A_3_inv * A2_inv * A1_inv, A_3_inv * A2_inv, A_3_inv, I
@@ -286,8 +286,8 @@ class So3SplineView {
 
     A_post_inv[DEG] = Mat3::Identity();   // 3
     for (int i = DEG - 1; i >= 0; i--) {  // 2 1 0
-      Eigen::Map<SO3 const> R0(knots[s + i]);
-      Eigen::Map<SO3 const> R1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> R0(knots[i]);
+      Eigen::Map<SO3 const> R1(knots[i + 1]);
 
       Vec3 delta = (R0.inverse() * R1).log();
       Vec3 kdelta = delta * coeff[i + 1];
@@ -352,8 +352,8 @@ class So3SplineView {
     Mat3 Jr_delta_inv[DEG], Jr_kdelta[DEG];
 
     for (int i = DEG - 1; i >= 0; i--) {
-      Eigen::Map<SO3 const> p0(knots[s + i]);
-      Eigen::Map<SO3 const> p1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> p0(knots[i]);
+      Eigen::Map<SO3 const> p1(knots[i + 1]);
 
       SO3 r01 = p0.inverse() * p1;
       delta_vec[i] = r01.log();
@@ -383,7 +383,7 @@ class So3SplineView {
     }
 
     if (J) {
-      J->start_idx = s;
+      J->start_idx = 0;
       for (int i = 0; i < N; i++) J->d_val_d_knot[i].setZero();
       for (int i = 0; i < DEG; i++) {
         J->d_val_d_knot[i] -= d_vel_d_delta[i];
@@ -420,8 +420,8 @@ class So3SplineView {
     rot_accel.setZero();
 
     for (int i = 0; i < DEG; i++) {
-      Eigen::Map<SO3 const> p0(knots[s + i]);
-      Eigen::Map<SO3 const> p1(knots[s + i + 1]);
+      Eigen::Map<SO3 const> p0(knots[i]);
+      Eigen::Map<SO3 const> p1(knots[i + 1]);
 
       SO3 r01 = p0.inverse() * p1;
       Vec3 delta = r01.log();

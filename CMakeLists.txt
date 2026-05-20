@@ -5,10 +5,26 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall")
 
-find_package(catkin REQUIRED COMPONENTS roscpp)
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rosbag
+  sensor_msgs
+  cv_bridge
+  pcl_ros
+  pcl_conversions
+)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common filters segmentation sample_consensus search)
+find_package(OpenCV REQUIRED)
+
+find_library(APRILTAG_LIBRARY apriltag)
+find_library(APRILTAG_UTILS_LIBRARY apriltag-utils)
+find_path(APRILTAG_INCLUDE_DIR apriltag/apriltag.h)
+if(NOT APRILTAG_LIBRARY OR NOT APRILTAG_INCLUDE_DIR)
+  message(FATAL_ERROR "libapriltag not found (install libapriltag-dev)")
+endif()
 
 find_package(OpenMP)
 if(OPENMP_FOUND)
@@ -20,8 +36,8 @@ endif()
 ###################################
 catkin_package(
   INCLUDE_DIRS include src
-  LIBRARIES clic_calib_spline_lib clic_calib_data_lib
-  DEPENDS EIGEN3
+  LIBRARIES clic_calib_spline_lib clic_calib_data_lib clic_calib_target_lib clic_calib_estimator_lib
+  DEPENDS EIGEN3 PCL OpenCV
 )
 
 include_directories(
@@ -32,7 +48,12 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${YAML_CPP_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${APRILTAG_INCLUDE_DIR}
 )
+
+add_definitions(${PCL_DEFINITIONS})
 
 add_library(clic_calib_spline_lib
   src/clic_calib/spline/trajectory.cpp
@@ -42,9 +63,50 @@ target_link_libraries(clic_calib_spline_lib ${catkin_LIBRARIES})
 add_library(clic_calib_data_lib
   src/clic_calib/utils/lever_arm.cpp
   src/clic_calib/io/rtk_reader.cpp
+  src/clic_calib/io/observation_archive.cpp
 )
 target_link_libraries(clic_calib_data_lib
   ${catkin_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
+)
+
+add_library(clic_calib_target_lib
+  src/clic_calib/target/sphere_extractor.cpp
+  src/clic_calib/target/apriltag_detector_wrapper.cpp
+)
+target_link_libraries(clic_calib_target_lib
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${APRILTAG_LIBRARY}
+  ${APRILTAG_UTILS_LIBRARY}
+)
+
+add_library(clic_calib_estimator_lib
+  src/clic_calib/estimator/calibration_estimator.cpp
+  src/clic_calib/estimator/observability_analyzer.cpp
+)
+target_link_libraries(clic_calib_estimator_lib
+  clic_calib_spline_lib
+  clic_calib_data_lib
+  ${CERES_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
+)
+
+add_executable(analyze_observability app/analyze_observability.cpp)
+target_link_libraries(analyze_observability
+  clic_calib_estimator_lib
+  clic_calib_data_lib
+  ${CERES_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
+)
+
+add_executable(preprocess_rosbag app/preprocess_rosbag.cpp)
+target_link_libraries(preprocess_rosbag
+  clic_calib_target_lib
+  clic_calib_data_lib
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
   ${YAML_CPP_LIBRARIES}
 )
 
@@ -53,9 +115,11 @@ install(DIRECTORY include/${PROJECT_NAME}/
   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 
-install(TARGETS clic_calib_spline_lib clic_calib_data_lib
+install(TARGETS clic_calib_spline_lib clic_calib_data_lib clic_calib_target_lib
+  clic_calib_estimator_lib analyze_observability preprocess_rosbag
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ###################################
@@ -83,4 +147,22 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_prior_smoothness_jacobian
     test/test_prior_smoothness_jacobian.cpp)
   target_link_libraries(test_prior_smoothness_jacobian ${FACTOR_TEST_DEPS})
+
+  catkin_add_gtest(test_full_pipeline_synthetic
+    test/test_full_pipeline_synthetic.cpp)
+  target_link_libraries(test_full_pipeline_synthetic
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_observability_synthetic
+    test/test_observability_synthetic.cpp)
+  target_link_libraries(test_observability_synthetic
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_sphere_extractor test/test_sphere_extractor.cpp)
+  target_link_libraries(test_sphere_extractor clic_calib_target_lib ${PCL_LIBRARIES})
+
+  catkin_add_gtest(test_apriltag_wrapper test/test_apriltag_wrapper.cpp)
+  target_link_libraries(test_apriltag_wrapper clic_calib_target_lib ${OpenCV_LIBS})
 endif()

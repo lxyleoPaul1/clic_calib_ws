@@ -75,13 +75,13 @@ class RdSplineView {
     res.setZero();
 
     for (int i = 0; i < N; i++) {
-      Eigen::Map<VecD const> p(knots[s + i]);
+      Eigen::Map<VecD const> p(knots[i]);
       res += coeff[i] * p;
 
       if (J) J->d_val_d_knot[i] = coeff[i];
     }
 
-    if (J) J->start_idx = s;
+    if (J) J->start_idx = 0;
 
     return res;
   }

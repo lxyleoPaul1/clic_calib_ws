@@ -53,4 +53,7 @@ class BodyTrajectory : public Se3Spline<SplineOrder, double> {
                                   const Eigen::Vector3d& lever_g_to_mj) const;
 };
 
+/** @brief Alias used by CalibrationEstimator (UAV anchor T_WB). */
+using Trajectory = BodyTrajectory;
+
 }  // namespace clic_calib
