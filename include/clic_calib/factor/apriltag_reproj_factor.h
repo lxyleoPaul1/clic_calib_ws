@@ -83,10 +83,10 @@ class AprilTagReprojFactor : public ceres::CostFunction,
     SO3d R_WB;
     Vec3 p_WB;
     if (jacobians) {
-      R_WB = SO3View::EvaluateRotation(t_ns, spline_meta_, rot_knots, &J_R);
+      R_WB = SO3View::EvaluateRp(t_ns, spline_meta_, rot_knots, &J_R);
       p_WB = R3View::evaluate(t_ns, spline_meta_, pos_knots, &J_p);
     } else {
-      R_WB = SO3View::EvaluateRotation(t_ns, spline_meta_, rot_knots);
+      R_WB = SO3View::EvaluateRp(t_ns, spline_meta_, rot_knots);
       p_WB = R3View::evaluate(t_ns, spline_meta_, pos_knots);
     }
 
@@ -108,7 +108,7 @@ class AprilTagReprojFactor : public ceres::CostFunction,
     const Mat3 R_hat = R_WB.matrix() * SO3d::hat(L_B_to_G_M_);
     const Eigen::Matrix<double, 2, 3> J_p_MW = J_proj_pC * R_CW;
     const Eigen::Matrix<double, 2, 3> J_p_MW_R =
-        J_proj_pC * R_CW * (-R_hat);
+        J_proj_pC * R_CW * R_hat;
 
     if (jacobians[0]) {
       R3View::JacobianStruct J_v;
@@ -117,19 +117,19 @@ class AprilTagReprojFactor : public ceres::CostFunction,
           apriltag_dp_mw_dt(t_ns, spline_meta_, rot_knots, pos_knots,
                             L_B_to_G_M_, &J_v, &J_rot_unused, &J_omega);
       Eigen::Map<Eigen::Matrix<double, 2, 1>> J_td(jacobians[0]);
-      J_td = -inv_sigma_pix_ * J_proj_pC * R_CW * dp_dt;
+      J_td = inv_sigma_pix_ * J_proj_pC * R_CW * dp_dt;
     }
 
     if (jacobians[1]) {
       Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_q(jacobians[1]);
       J_q.setZero();
       J_q.block<2, 3>(0, 0) =
-          inv_sigma_pix_ * J_proj_pC * (-SO3d::hat(p_M_C));
+          inv_sigma_pix_ * J_proj_pC * (R_CW * SO3d::hat(p_M_W));
     }
 
     if (jacobians[2]) {
       Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J_t(jacobians[2]);
-      J_t = inv_sigma_pix_ * J_proj_pC;
+      J_t = -inv_sigma_pix_ * J_proj_pC;
     }
 
     for (int i = 0; i < SplineOrder; ++i) {
@@ -145,7 +145,7 @@ class AprilTagReprojFactor : public ceres::CostFunction,
       if (jacobians[idx_p]) {
         Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J_knot(
             jacobians[idx_p]);
-        J_knot = inv_sigma_pix_ * J_p_MW * (J_p.d_val_d_knot[i] * Mat3::Identity());
+        J_knot = -inv_sigma_pix_ * J_p_MW * (J_p.d_val_d_knot[i] * Mat3::Identity());
       }
     }
 

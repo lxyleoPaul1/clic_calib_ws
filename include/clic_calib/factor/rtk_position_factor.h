@@ -54,10 +54,10 @@ class RTKPositionFactor : public ceres::CostFunction,
     SO3d R_WB;
     Vec3 p_WB;
     if (jacobians) {
-      R_WB = SO3View::EvaluateRotation(t_ns_, spline_meta_, parameters, &J_R);
+      R_WB = SO3View::EvaluateRp(t_ns_, spline_meta_, parameters, &J_R);
       p_WB = R3View::evaluate(t_ns_, spline_meta_, parameters + p_offset, &J_p);
     } else {
-      R_WB = SO3View::EvaluateRotation(t_ns_, spline_meta_, parameters);
+      R_WB = SO3View::EvaluateRp(t_ns_, spline_meta_, parameters);
       p_WB = R3View::evaluate(t_ns_, spline_meta_, parameters + p_offset);
     }
 
@@ -92,7 +92,7 @@ class RTKPositionFactor : public ceres::CostFunction,
             jacobians[idx_r]);
         J_knot.setZero();
         J_knot.block<3, 3>(0, 0) =
-            sqrt_info_ * (-R_hat_L * J_R.d_val_d_knot[i]);
+            sqrt_info_ * (R_hat_L * J_R.d_val_d_knot[i]);
       }
 
       const size_t idx_p = knot_num + J_p.start_idx + i;

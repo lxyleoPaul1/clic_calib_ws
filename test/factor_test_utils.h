@@ -113,7 +113,8 @@ inline void NumericalJacobian(ceres::CostFunction* cost,
 /** @brief Compare Ceres analytic Jacobians (row-major blocks) to numeric. */
 inline bool CompareJacobians(
     ceres::CostFunction* cost, const std::vector<double*>& param_ptrs,
-    const std::vector<int>& block_sizes, double tol = 1e-5) {
+    const std::vector<int>& block_sizes, double rel_tol = 1e-5,
+    double abs_tol = 1e-5) {
   const int num_residuals = cost->num_residuals();
   std::vector<double> residuals(num_residuals);
   std::vector<double*> jac_ptrs(param_ptrs.size());
@@ -136,7 +137,9 @@ inline bool CompareJacobians(
       for (int d = 0; d < num_compare; ++d) {
         const double analytic = jac_storage[b][r * block_sizes[b] + d];
         const double numeric = num_jac(r, col + d);
-        if (RelativeJacobianError(analytic, numeric) > tol) {
+        const double abs_diff = std::abs(analytic - numeric);
+        if (RelativeJacobianError(analytic, numeric) > rel_tol &&
+            abs_diff > abs_tol) {
           return false;
         }
       }

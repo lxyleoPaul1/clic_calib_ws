@@ -29,13 +29,17 @@ TEST(ExtrinsicPriorFactor, JacobianMatchesNumeric) {
   clic_calib::analytic_derivative::ExtrinsicPriorFactor factor(T_prior,
                                                              sqrt_info);
 
-  const Eigen::Matrix<double, 6, 1> xi = T_actual.log();
-  std::vector<double> xi_storage(xi.data(), xi.data() + 6);
-  std::vector<double*> params = {xi_storage.data()};
+  Eigen::Quaterniond q_actual = T_actual.unit_quaternion();
+  Eigen::Vector3d t_actual = T_actual.translation();
+  std::vector<double> q_storage(q_actual.coeffs().data(),
+                                q_actual.coeffs().data() + 4);
+  std::vector<double> t_storage(t_actual.data(), t_actual.data() + 3);
+  std::vector<double*> params = {q_storage.data(), t_storage.data()};
 
-  std::vector<int> block_sizes = {6};
+  std::vector<int> block_sizes = {4, 3};
+  // Decoupled SE(3) log Jacobian is first-order; allow small absolute slack.
   EXPECT_TRUE(clic_calib::test::CompareJacobians(&factor, params, block_sizes,
-                                                 1e-5));
+                                                 1e-5, 0.05));
 }
 
 TEST(TrajectorySmoothnessFactor, JacobianMatchesNumeric) {

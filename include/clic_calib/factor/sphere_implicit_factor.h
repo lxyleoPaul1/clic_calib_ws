@@ -24,7 +24,7 @@ inline Eigen::Vector3d sphere_dp_gw_dt(
     RdSplineView::JacobianStruct* J_pos = nullptr,
     So3SplineView::JacobianStruct* J_rot = nullptr,
     So3SplineView::JacobianStruct* J_omega = nullptr) {
-  SO3d R_WB = So3SplineView::EvaluateRotation(t_ns, meta, rot_knots, J_rot);
+  SO3d R_WB = So3SplineView::EvaluateRp(t_ns, meta, rot_knots, J_rot);
   Eigen::Vector3d v_WB = RdSplineView::velocity(t_ns, meta, pos_knots, J_pos);
   Eigen::Vector3d omega_b =
       So3SplineView::VelocityBody(t_ns, meta, rot_knots, J_omega);
@@ -80,10 +80,10 @@ class SphereImplicitFactor : public ceres::CostFunction,
     SO3d R_WB;
     Vec3 p_WB;
     if (jacobians) {
-      R_WB = SO3View::EvaluateRotation(t_ns, spline_meta_, rot_knots, &J_R);
+      R_WB = SO3View::EvaluateRp(t_ns, spline_meta_, rot_knots, &J_R);
       p_WB = R3View::evaluate(t_ns, spline_meta_, pos_knots, &J_p);
     } else {
-      R_WB = SO3View::EvaluateRotation(t_ns, spline_meta_, rot_knots);
+      R_WB = SO3View::EvaluateRp(t_ns, spline_meta_, rot_knots);
       p_WB = R3View::evaluate(t_ns, spline_meta_, pos_knots);
     }
 
