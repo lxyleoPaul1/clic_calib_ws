@@ -24,12 +24,12 @@ std::string ConfigDir() {
 }
 
 clic_calib::BodyTrajectory MakeMultiLayerTrajectory() {
-  clic_calib::BodyTrajectory traj(0.1, 0.0);
-  const int num_knots = 12;
+  clic_calib::BodyTrajectory traj(0.05, 0.0);
+  const int num_knots = 24;
   const clic_calib::SE3d k0(clic_calib::SO3d::rotZ(0.0), Eigen::Vector3d::Zero());
   traj.setKnots(k0, num_knots);
   for (int i = 0; i < num_knots; ++i) {
-    const double s = static_cast<double>(i) * 0.1;
+    const double s = static_cast<double>(i) * 0.05;
     const clic_calib::SO3d R = clic_calib::SO3d::rotZ(0.05 * s) *
                                clic_calib::SO3d::rotY(0.12 * std::sin(s));
     const Eigen::Vector3d p(0.5 * s, 0.3 * std::sin(s), 2.0 + 0.4 * std::sin(s));
@@ -42,12 +42,12 @@ clic_calib::BodyTrajectory MakeMultiLayerTrajectory() {
 }
 
 clic_calib::BodyTrajectory MakeCoplanarTrajectory() {
-  clic_calib::BodyTrajectory traj(0.1, 0.0);
-  const int num_knots = 12;
+  clic_calib::BodyTrajectory traj(0.05, 0.0);
+  const int num_knots = 24;
   const clic_calib::SE3d k0(clic_calib::SO3d::rotZ(0.0), Eigen::Vector3d::Zero());
   traj.setKnots(k0, num_knots);
   for (int i = 0; i < num_knots; ++i) {
-    const double s = static_cast<double>(i) * 0.1;
+    const double s = static_cast<double>(i) * 0.05;
     const clic_calib::SO3d R = clic_calib::SO3d(Eigen::Quaterniond::Identity());
     const Eigen::Vector3d p(0.5 * s, 0.3 * std::sin(s), 2.0);
     traj.setKnot(clic_calib::SE3d(R, p), i);
@@ -150,18 +150,11 @@ struct AnalysisResult {
 };
 
 AnalysisResult RunObservabilityAnalysis(const SyntheticScenario& scenario) {
-  const clic_calib::SE3d T_LW_gt(clic_calib::SO3d::rotY(-0.15),
-                                 Eigen::Vector3d(3.0, -1.0, 0.5));
-  const clic_calib::SE3d T_CW_gt(clic_calib::SO3d::rotX(0.1),
-                                 Eigen::Vector3d(2.0, 1.5, 0.2));
-
   clic_calib::CalibrationEstimator estimator(ConfigDir());
-  estimator.set_initial_extrinsic_T_LW(0, T_LW_gt);
-  estimator.set_initial_extrinsic_T_CW(0, T_CW_gt);
   estimator.add_rtk_measurements(scenario.rtk);
   estimator.add_lidar_target_observations(0, scenario.lidar_obs);
   estimator.add_apriltag_observations(0, scenario.tag_obs);
-  estimator.build_problem_for_analysis();
+  estimator.solve(1000);
 
   AnalysisResult out;
   out.layout = estimator.analysis_parameter_layout();
@@ -230,4 +223,9 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
       coplanar_result.report.worst_eigenvector, coplanar_result.layout);
   EXPECT_GT(coplanar_dom + multi_dom, 0.2)
       << "expected identifiable pitch/z components in worst eigenvectors";
+}
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

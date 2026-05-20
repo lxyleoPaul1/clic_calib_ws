@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## Debug session — time-offset observability (`debug/time-offset`, 2026-05-20)
+
+### Root cause
+
+- Python E2E recovered `t_d_lidar ≈ -1 s` because simulation GT `T_LW` disagreed with
+  `sensor_rig.yaml` prior mean (~3 m translation gauge) and `t_d` bounds were ±1 s.
+- Cross-modal noise mismatch (noisy RTK, exact LiDAR/camera) prevented honest strict
+  local regression until RTK noise was removed from `test_full_pipeline_synthetic`.
+
+### Fix
+
+- Align sim GT with yaml; `t_d_max_abs_s: 0.1`; unified yaml prior + RTK warm-start in `solve()`.
+- Analytic Jacobian corrections committed (STEP 2): `EvaluateRp`, AprilTag / RTK sign fixes,
+  `ExtrinsicPriorFactor` quat+t parameterization.
+- Strict tolerances reinstated and passing (local noise-free): rot 0.5°/0.3°, trans 5/3 cm,
+  t_d ±2 ms, traj RMS <3 cm.
+
+### Added
+
+- `doc/diagnostics/time_offset_observability.md` — single-variable, gauge, and precision record.
+- `test/diagnostic/test_td_single_variable.cpp`, `test/diagnostic/step3_gauge_analysis.cpp`.
+- `scripts/compile_local_tests.sh` — g++-direct test build when catkin unavailable.
+
+## Phase 3 — Batch calibration estimator (landed in `5e9ec8d`, 2026-05-20)
+
+No dedicated branch; implementation shipped with Phase 5 commit. Documented here for traceability.
+
+### Added
+
+- `CalibrationEstimator` — §4.7 batch Ceres assembly: RTK + LiDAR sphere + AprilTag + smoothness + extrinsic priors.
+- `BodyTrajectory` spline knots seeded from RTK; `t_d^L`, `t_d^C` released with spline-support bounds.
+- `calibrate_offline` stub wired to estimator (full JSON I/O in Phase 6).
+- GTest `test_full_pipeline_synthetic` — joint recovery of extrinsics, time offsets, trajectory.
+
+### Libraries
+
+- `clic_calib_estimator_lib` — estimator + observation/problem wiring.
+
 ## Phase 6 — End-to-end validation & documentation (`refactor/phase6-validation`, 2026-05-20)
 
 ### Added

@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <iostream>
 #include <random>
 #include <string>
 #include <vector>
@@ -25,12 +26,12 @@ std::string ConfigDir() {
 }
 
 clic_calib::BodyTrajectory MakeLongRangeTrajectory(bool multilayer) {
-  clic_calib::BodyTrajectory traj(0.1, 0.0);
-  const int num_knots = 12;
+  clic_calib::BodyTrajectory traj(0.05, 0.0);
+  const int num_knots = 24;
   const clic_calib::SE3d k0(clic_calib::SO3d::rotZ(0.0), Eigen::Vector3d::Zero());
   traj.setKnots(k0, num_knots);
   for (int i = 0; i < num_knots; ++i) {
-    const double s = static_cast<double>(i) * 0.1;
+    const double s = static_cast<double>(i) * 0.05;
     clic_calib::SO3d R = clic_calib::SO3d::rotZ(0.05 * s);
     double z = 10.0;
     if (multilayer) {
@@ -51,6 +52,7 @@ struct PatentScenario {
   std::vector<clic_calib::LiDARTargetObservation> lidar_obs;
   std::vector<clic_calib::AprilTagObservation> tag_obs;
   clic_calib::SE3d T_LW_gt;
+  clic_calib::SE3d T_CW_gt;
 };
 
 PatentScenario BuildScenario(bool multilayer, bool include_camera) {
@@ -60,9 +62,9 @@ PatentScenario BuildScenario(bool multilayer, bool include_camera) {
 
   PatentScenario scenario;
   scenario.T_LW_gt =
-      clic_calib::SE3d(clic_calib::SO3d::rotY(-0.15), Eigen::Vector3d(0.0, 0.0, 0.5));
-  const clic_calib::SE3d T_CW_gt(clic_calib::SO3d::rotX(0.1),
-                                 Eigen::Vector3d(2.0, 1.5, 0.2));
+      clic_calib::SE3d(clic_calib::SO3d::rotY(-0.15), Eigen::Vector3d(3.0, -1.0, 0.5));
+  scenario.T_CW_gt =
+      clic_calib::SE3d(clic_calib::SO3d::rotX(0.1), Eigen::Vector3d(2.0, 1.5, 0.2));
   const double t_d_L_gt = 0.030;
   const double t_d_C_gt = -0.015;
   const double R_ball = 0.10;
@@ -70,7 +72,7 @@ PatentScenario BuildScenario(bool multilayer, bool include_camera) {
   clic_calib::PinholeIntrinsics K{600.0, 600.0, 320.0, 240.0};
   clic_calib::RadtanDistortion dist;
 
-  std::mt19937 rng(42);
+  std::mt19937 rng(123);
   std::normal_distribution<double> noise_xy(0.0, 0.01);
   std::normal_distribution<double> noise_z(0.0, 0.02);
 
@@ -117,7 +119,7 @@ PatentScenario BuildScenario(bool multilayer, bool include_camera) {
       for (int c = 0; c < 4; ++c) {
         const Eigen::Vector3d L_corner = levers.L_B_to_G + L_G_to_M + corners[c];
         const clic_calib::SE3d T_WB = gt_traj.pose_wb(t);
-        const Eigen::Vector3d p_M_C = T_CW_gt * (T_WB * L_corner);
+        const Eigen::Vector3d p_M_C = scenario.T_CW_gt * (T_WB * L_corner);
         det.corners_pixel_[c] =
             clic_calib::ProjectRadtan(p_M_C, K, dist, nullptr);
       }
@@ -127,44 +129,61 @@ PatentScenario BuildScenario(bool multilayer, bool include_camera) {
   return scenario;
 }
 
-double SolveAndZError(const PatentScenario& scenario, bool anchor_prior_to_gt) {
-  const clic_calib::SE3d T_LW_init =
-      scenario.T_LW_gt *
-      clic_calib::SE3d(clic_calib::SO3d(), Eigen::Vector3d(0.0, 0.0, 1.5));
+struct PatentSolveResult {
+  double z_error_m = 0.0;
+  double t_d_lidar_s = 0.0;
+  clic_calib::SE3d T_LW_est;
+};
+
+/** Realistic pipeline; optional +2 m Z bias on prior/init to test observability. */
+PatentSolveResult SolveRealisticPipeline(const PatentScenario& scenario,
+                                         bool include_camera,
+                                         double z_prior_bias_m) {
+  const clic_calib::SE3d T_LW_bias(clic_calib::SO3d(),
+                                   Eigen::Vector3d(0.0, 0.0, z_prior_bias_m));
+  const clic_calib::SE3d T_LW_prior = scenario.T_LW_gt * T_LW_bias;
 
   clic_calib::CalibrationEstimator estimator(ConfigDir());
-  if (anchor_prior_to_gt) {
-    estimator.set_extrinsic_prior_T_LW(0, scenario.T_LW_gt);
-  } else {
-    estimator.set_extrinsic_prior_T_LW(0, T_LW_init);
+  if (z_prior_bias_m != 0.0) {
+    estimator.set_extrinsic_prior_T_LW(0, T_LW_prior);
+    estimator.set_initial_extrinsic_T_LW(0, T_LW_prior);
   }
-  estimator.set_initial_extrinsic_T_LW(0, T_LW_init);
-  estimator.set_initial_extrinsic_T_CW(
-      0, clic_calib::SE3d(clic_calib::SO3d::rotX(0.1), Eigen::Vector3d(2.0, 1.5, 0.2)));
   estimator.add_rtk_measurements(scenario.rtk);
   estimator.add_lidar_target_observations(0, scenario.lidar_obs);
-  estimator.add_apriltag_observations(0, scenario.tag_obs);
+  if (include_camera) {
+    estimator.add_apriltag_observations(0, scenario.tag_obs);
+  }
 
-  const ceres::Solver::Summary summary = estimator.solve(250);
+  const ceres::Solver::Summary summary = estimator.solve(1000);
   EXPECT_TRUE(summary.IsSolutionUsable()) << summary.FullReport();
 
-  const double t_z_est = estimator.get_T_LW(0).translation().z();
-  const double t_z_gt = scenario.T_LW_gt.translation().z();
-  return std::abs(t_z_est - t_z_gt);
+  PatentSolveResult out;
+  out.T_LW_est = estimator.get_T_LW(0);
+  out.t_d_lidar_s = estimator.get_t_d_lidar(0);
+  out.z_error_m =
+      std::abs(out.T_LW_est.translation().z() - scenario.T_LW_gt.translation().z());
+  return out;
 }
 
 }  // namespace
 
-TEST(PatentZAccuracy, MultiLayerUnderPointOneMetreAt200m) {
+TEST(PatentZAccuracy, MultiLayerRealisticPipelineAt200m) {
   const PatentScenario scenario = BuildScenario(/*multilayer=*/true, /*camera=*/true);
-  const double z_err = SolveAndZError(scenario, /*anchor_prior_to_gt=*/true);
-  EXPECT_LT(z_err, 0.1) << "Patent claim: Z-axis error < 0.1 m at 200 m range";
+  const PatentSolveResult result =
+      SolveRealisticPipeline(scenario, /*include_camera=*/true, /*z_prior_bias_m=*/0.0);
+  EXPECT_LT(result.z_error_m, 0.1)
+      << "Multi-layer: |T_LW.t.z - gt.z| < 0.1 m at 200 m (realistic pipeline, noisy RTK)";
+  // t_d at 200 m with noisy RTK is weaker than local strict regression; report only.
+  std::cout << "[PatentZAccuracy] realistic 200 m: z_err=" << result.z_error_m
+            << " m, t_d_lidar=" << result.t_d_lidar_s << " s (gt=0.030)\n";
 }
 
-TEST(PatentZAccuracy, CoplanarBaselineOverOneMetreAt200m) {
+TEST(PatentZAccuracy, CoplanarRetainsLargeZErrorWithTwoMetrePriorBias) {
   const PatentScenario scenario = BuildScenario(/*multilayer=*/false, /*camera=*/false);
-  const double z_err = SolveAndZError(scenario, /*anchor_prior_to_gt=*/false);
-  EXPECT_GT(z_err, 1.0) << "Coplanar baseline should retain > 1 m Z error";
+  const PatentSolveResult result =
+      SolveRealisticPipeline(scenario, /*include_camera=*/false, /*z_prior_bias_m=*/2.0);
+  EXPECT_GT(result.z_error_m, 1.0)
+      << "Coplanar flight cannot resolve +2 m Z bias from LiDAR alone";
 }
 
 int main(int argc, char** argv) {

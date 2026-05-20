@@ -30,6 +30,8 @@ struct SplineConfig {
   double sigma_pix = 1.0;
   double lidar_cauchy_scale = 1.0;
   double camera_huber_delta_px = 2.0;
+  /** Hard clamp on |t_d| [s]; intersected with spline-support bounds. */
+  double t_d_max_abs_s = 0.1;
 };
 
 struct TargetGeometryConfig {
@@ -97,6 +99,9 @@ SplineConfig LoadSplineConfig(const std::string& path) {
   }
   if (node["camera_huber_delta_px"]) {
     cfg.camera_huber_delta_px = node["camera_huber_delta_px"].as<double>();
+  }
+  if (node["t_d_max_abs_s"]) {
+    cfg.t_d_max_abs_s = node["t_d_max_abs_s"].as<double>();
   }
   return cfg;
 }
@@ -282,9 +287,10 @@ Eigen::Vector3d LeverArmToMarkerCorner(const LeverArmConfig& levers,
 }
 
 std::pair<double, double> TimeOffsetBoundsForBarTimestamps(
-    const std::vector<double>& bar_t_s, const BodyTrajectory& traj) {
+    const std::vector<double>& bar_t_s, const BodyTrajectory& traj,
+    double t_d_max_abs_s) {
   if (bar_t_s.empty()) {
-    return {-0.5, 0.5};
+    return {-t_d_max_abs_s, t_d_max_abs_s};
   }
   const double min_bar =
       *std::min_element(bar_t_s.begin(), bar_t_s.end());
@@ -294,8 +300,8 @@ std::pair<double, double> TimeOffsetBoundsForBarTimestamps(
   const double t_max = traj.maxTimeNs() * NS_TO_S - 1e-3;
   double td_lower = max_bar - t_max;
   double td_upper = min_bar - t_min;
-  td_lower = std::max(td_lower, -1.0);
-  td_upper = std::min(td_upper, 1.0);
+  td_lower = std::max(td_lower, -t_d_max_abs_s);
+  td_upper = std::min(td_upper, t_d_max_abs_s);
   if (td_lower >= td_upper) {
     const double mid = 0.5 * (min_bar + max_bar) - 0.5 * (t_min + t_max);
     return {mid - 0.05, mid + 0.05};
@@ -322,6 +328,7 @@ struct CalibrationEstimator::Impl {
 
   BodyTrajectory::Ptr trajectory;
   bool trajectory_rtk_seeded = false;
+  bool rtk_warm_start_done = false;
 
   std::unique_ptr<ceres::Problem> problem;
   std::vector<std::unique_ptr<ceres::CostFunction>> owned_costs;
@@ -479,8 +486,8 @@ struct CalibrationEstimator::Impl {
         }
       }
 
-      const auto td_bounds =
-          TimeOffsetBoundsForBarTimestamps(bar_times, *trajectory);
+      const auto td_bounds = TimeOffsetBoundsForBarTimestamps(
+          bar_times, *trajectory, spline.t_d_max_abs_s);
       if (prob->HasParameterBlock(&state.t_d)) {
         prob->SetParameterLowerBound(&state.t_d, 0, td_bounds.first);
         prob->SetParameterUpperBound(&state.t_d, 0, td_bounds.second);
@@ -547,8 +554,8 @@ struct CalibrationEstimator::Impl {
         }
       }
 
-      const auto td_bounds =
-          TimeOffsetBoundsForBarTimestamps(bar_times, *trajectory);
+      const auto td_bounds = TimeOffsetBoundsForBarTimestamps(
+          bar_times, *trajectory, spline.t_d_max_abs_s);
       if (prob->HasParameterBlock(&state.t_d)) {
         prob->SetParameterLowerBound(&state.t_d, 0, td_bounds.first);
         prob->SetParameterUpperBound(&state.t_d, 0, td_bounds.second);
@@ -611,6 +618,22 @@ struct CalibrationEstimator::Impl {
                              static_cast<int>(i));
     }
     trajectory_rtk_seeded = true;
+  }
+
+  void RunRtkWarmStart() {
+    if (rtk_warm_start_done) {
+      return;
+    }
+    if (!trajectory_rtk_seeded) {
+      SeedTrajectoryKnotsFromRtk();
+    }
+    BuildProblem(true);
+    const ceres::Solver::Summary summary = RunSolver(100);
+    if (!summary.IsSolutionUsable()) {
+      std::cerr << "[CalibrationEstimator] RTK warm-start failed:\n"
+                << summary.FullReport() << std::endl;
+    }
+    rtk_warm_start_done = true;
   }
 
   ~Impl() { ClearProblem(); }
@@ -696,23 +719,14 @@ void CalibrationEstimator::set_extrinsic_prior_T_CW(int sensor_id,
 }
 
 void CalibrationEstimator::initialize_trajectory_from_rtk() {
-  impl_->SeedTrajectoryKnotsFromRtk();
-
-  impl_->BuildProblem(true);
-  const ceres::Solver::Summary summary = impl_->RunSolver(50);
-  if (!summary.IsSolutionUsable()) {
-    std::cerr << "[CalibrationEstimator] RTK init failed:\n"
-              << summary.FullReport() << std::endl;
-  }
+  impl_->RunRtkWarmStart();
 }
 
 ceres::Solver::Summary CalibrationEstimator::solve(int max_iters) {
   if (impl_->rtk.empty()) {
     throw std::runtime_error("solve: no RTK measurements");
   }
-  if (!impl_->trajectory_rtk_seeded) {
-    impl_->SeedTrajectoryKnotsFromRtk();
-  }
+  impl_->RunRtkWarmStart();
 
   const double t0 = impl_->rtk.front().t_world_;
   double t_end = impl_->rtk.back().t_world_;
@@ -761,9 +775,7 @@ void CalibrationEstimator::build_problem_for_analysis() {
   if (impl_->rtk.empty()) {
     throw std::runtime_error("build_problem_for_analysis: no RTK measurements");
   }
-  if (!impl_->trajectory_rtk_seeded) {
-    impl_->SeedTrajectoryKnotsFromRtk();
-  }
+  impl_->RunRtkWarmStart();
 
   const double t0 = impl_->rtk.front().t_world_;
   double t_end = impl_->rtk.back().t_world_;

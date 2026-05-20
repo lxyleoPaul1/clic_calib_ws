@@ -124,7 +124,8 @@ def generate(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    T_LW = se3(rot_y(-0.15), np.array([0.0, 0.0, 0.5]))
+    # Must match config/sensor_rig.yaml initial_T_LW (prior mean = GT for E2E).
+    T_LW = se3(rot_y(-0.15), np.array([3.0, -1.0, 0.5]))
     T_CW = se3(rot_x(0.1), np.array([2.0, 1.5, 0.2]))
 
     rng = np.random.default_rng(123)

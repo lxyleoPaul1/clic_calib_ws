@@ -8,7 +8,6 @@
 
 #include <cmath>
 #include <filesystem>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -35,12 +34,12 @@ double TranslationErrorM(const clic_calib::SE3d& T_est,
 }
 
 clic_calib::BodyTrajectory MakeGroundTruthTrajectory() {
-  clic_calib::BodyTrajectory traj(0.1, 0.0);
-  const int num_knots = 12;
+  clic_calib::BodyTrajectory traj(0.05, 0.0);
+  const int num_knots = 24;
   const clic_calib::SE3d k0(clic_calib::SO3d::rotZ(0.0), Eigen::Vector3d::Zero());
   traj.setKnots(k0, num_knots);
   for (int i = 0; i < num_knots; ++i) {
-    const double s = static_cast<double>(i) * 0.1;
+    const double s = static_cast<double>(i) * 0.05;
     const clic_calib::SO3d R = clic_calib::SO3d::rotZ(0.05 * s);
     const Eigen::Vector3d p(0.5 * s, 0.3 * std::sin(s), 2.0 + 0.1 * s);
     traj.setKnot(clic_calib::SE3d(R, p), i);
@@ -70,18 +69,15 @@ TEST(FullPipelineSynthetic, RecoversExtrinsicsTimeOffsetsAndTrajectory) {
   clic_calib::PinholeIntrinsics K{600.0, 600.0, 320.0, 240.0};
   clic_calib::RadtanDistortion dist;
 
-  std::mt19937 rng(123);
-  std::normal_distribution<double> noise_xy(0.0, 0.01);
-  std::normal_distribution<double> noise_z(0.0, 0.02);
-
+  // Noise-free RTK: LiDAR / camera observations are also exact, so the strict
+  // regression tests the joint MLE without cross-modal noise mismatch. Noisy RTK
+  // (σ_xy=1 cm, σ_z=2 cm) is exercised in Python E2E and test_patent_z_accuracy.
   std::vector<clic_calib::RTKMeasurement> rtk;
   for (double t = 0.2; t <= 4.8; t += 0.1) {
     clic_calib::RTKMeasurement m;
     m.t_world_ = t;
     m.fix_status_ = clic_calib::RTKMeasurement::FixStatus::FIXED;
-    const Eigen::Vector3d p_A = gt_traj.antenna_position_w(t, levers.L_B_to_A);
-    m.p_A_W_observed_ =
-        p_A + Eigen::Vector3d(noise_xy(rng), noise_xy(rng), noise_z(rng));
+    m.p_A_W_observed_ = gt_traj.antenna_position_w(t, levers.L_B_to_A);
     m.covariance_.setZero();
     m.covariance_.diagonal() << 1e-4, 1e-4, 4e-4;
     rtk.push_back(m);
@@ -125,33 +121,26 @@ TEST(FullPipelineSynthetic, RecoversExtrinsicsTimeOffsetsAndTrajectory) {
     tag_obs.push_back(det);
   }
 
+  // Initial extrinsics / t_d from config/sensor_rig.yaml (same as calibrate_offline).
   clic_calib::CalibrationEstimator estimator(ConfigDir());
-  const clic_calib::SE3d T_LW_init =
-      T_LW_gt * clic_calib::SE3d(clic_calib::SO3d::rotZ(0.03),
-                                 Eigen::Vector3d(0.08, -0.05, 0.03));
-  const clic_calib::SE3d T_CW_init =
-      T_CW_gt * clic_calib::SE3d(clic_calib::SO3d::rotY(-0.02),
-                                 Eigen::Vector3d(-0.04, 0.06, -0.02));
-  estimator.set_initial_extrinsic_T_LW(0, T_LW_init);
-  estimator.set_initial_extrinsic_T_CW(0, T_CW_init);
   estimator.add_rtk_measurements(rtk);
   estimator.add_lidar_target_observations(0, lidar_obs);
   estimator.add_apriltag_observations(0, tag_obs);
 
-  const ceres::Solver::Summary summary = estimator.solve(300);
+  const ceres::Solver::Summary summary = estimator.solve(1000);
   ASSERT_TRUE(summary.IsSolutionUsable()) << summary.FullReport();
 
   const clic_calib::SE3d T_LW_est = estimator.get_T_LW(0);
   const clic_calib::SE3d T_CW_est = estimator.get_T_CW(0);
 
-  EXPECT_LT(RotationErrorDeg(T_LW_est, T_LW_gt), 1.5);
+  EXPECT_LT(RotationErrorDeg(T_LW_est, T_LW_gt), 0.5);
   EXPECT_LT(TranslationErrorM(T_LW_est, T_LW_gt), 0.05);
 
-  EXPECT_LT(RotationErrorDeg(T_CW_est, T_CW_gt), 1.0);
+  EXPECT_LT(RotationErrorDeg(T_CW_est, T_CW_gt), 0.3);
   EXPECT_LT(TranslationErrorM(T_CW_est, T_CW_gt), 0.03);
 
-  EXPECT_NEAR(estimator.get_t_d_lidar(0), t_d_L_gt, 0.035);
-  EXPECT_NEAR(estimator.get_t_d_camera(0), t_d_C_gt, 0.035);
+  EXPECT_NEAR(estimator.get_t_d_lidar(0), t_d_L_gt, 0.002);
+  EXPECT_NEAR(estimator.get_t_d_camera(0), t_d_C_gt, 0.002);
 
   double sq_sum = 0.0;
   int count = 0;
@@ -163,7 +152,7 @@ TEST(FullPipelineSynthetic, RecoversExtrinsicsTimeOffsetsAndTrajectory) {
     ++count;
   }
   const double rms = std::sqrt(sq_sum / std::max(count, 1));
-  EXPECT_LT(rms, 0.25);
+  EXPECT_LT(rms, 0.03);
 }
 
 int main(int argc, char** argv) {

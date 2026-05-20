@@ -30,6 +30,10 @@ if [[ -f "${WS}/devel/lib/clic_calib/test_rtk_factor_jacobian" ]]; then
   for t in "${TESTS[@]}"; do
     run_one "${WS}/devel/lib/clic_calib/${t}"
   done
+elif [[ -x "${ROOT}/build/local_tests/test_rtk_factor_jacobian" ]]; then
+  for t in "${TESTS[@]}"; do
+    run_one "${ROOT}/build/local_tests/${t}"
+  done
 elif command -v rosrun >/dev/null 2>&1; then
   for t in "${TESTS[@]}"; do
     if rosrun clic_calib "${t}"; then
@@ -41,7 +45,7 @@ elif command -v rosrun >/dev/null 2>&1; then
     fi
   done
 else
-  echo "Build tests first: catkin_make -DCATKIN_ENABLE_TESTING=ON"
+  echo "Build tests first: scripts/compile_local_tests.sh"
   exit 1
 fi
 

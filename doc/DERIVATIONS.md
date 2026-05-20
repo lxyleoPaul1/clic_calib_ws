@@ -218,6 +218,39 @@ If `λ_min(F_ext)` below threshold OR `PDOP_ext` above threshold → recommend a
 
 ---
 
+## Validation metrics: trajectory RMS vs 200 m Z-extrapolation error
+
+These quantify different things and are **not contradictory** when both are small:
+
+| Metric | What it measures | Typical test |
+|--------|------------------|--------------|
+| **Trajectory RMS** | Mean 3-D body-position error `\|p_WB_est(t) - p_WB_gt(t)\|` over the **observed flight window** (all axes, ~0–5 m local or 200 m standoff). | `test_full_pipeline_synthetic` |
+| **200 m Z-error** | `\|T_LW.t.z - T_LW_gt.t.z\|` after full calibration at **long standoff** — dominated by **pitch / vertical lever-arm uncertainty × horizontal range** (first-order: `\delta z \approx R \cdot \delta\theta_pitch` at the roadside rig). | `test_patent_z_accuracy`, Python E2E |
+
+A cm-level trajectory RMS over 4–5 s of multi-layer motion confirms the spline fits RTK + vision + LiDAR jointly. Sub-decimetre Z at 200 m confirms the **extrinsic vertical component** of `T_LW` is observable under multi-layer excitation (§2 smoothness / FIM). Coplanar flight removes pitch observability → Z-error grows (> 1 m), as in the coplanar ablation.
+
+---
+
+## Unified calibration setup (GTest = Python E2E)
+
+All production paths share:
+
+- **Prior:** `ExtrinsicPriorFactor` from `config/sensor_rig.yaml` (`prior_rot_std_deg=5`, `prior_trans_std_m=0.5`; mean = `initial_T_*`).
+- **Time offsets:** released; hard clamp `\|t_d\| ≤ t_d_max_abs_s` (default **0.1 s** in `config/spline.yaml`), intersected with spline-support bounds.
+- **Trajectory init:** `initialize_trajectory_from_rtk()` inside `solve()` (RTK knot seed + RTK-only pre-solve).
+
+**Intentional differences:**
+
+| Path | Standoff | Purpose |
+|------|----------|---------|
+| `test_full_pipeline_synthetic` | ~0–5 m local | Fast strict regression (rotation, translation, t_d, traj RMS). **Noise-free RTK** (LiDAR/camera also exact) — avoids cross-modal mismatch that widened tolerances masked. |
+| Python E2E / `test_patent_z_accuracy` | 200 m | Long-range Z claim; **noisy RTK** (σ_xy=1 cm, σ_z=2 cm, cov matches factor weighting). |
+| `test/diagnostic/test_td_single_variable` | isolated | Jacobian / observability only (no RTK, fixed knots). |
+
+Simulation GT extrinsics **must** match `sensor_rig.yaml` `initial_T_*` so the prior mean equals ground truth.
+
+---
+
 ## References
 
 - Sommer et al., CVPR 2020 — cumulative B-spline derivatives on Lie groups (§4.2 rotation Jacobians).
