@@ -102,12 +102,11 @@ class LieLocalParameterization : public ceres::LocalParameterization {
   virtual bool ComputeJacobian(double const* T_raw,
                                double* jacobian_raw) const {
     Eigen::Map<Groupd const> T(T_raw);
-    // TODO
-    //  Eigen::Map<Eigen::Matrix<double, Groupd::num_parameters, Groupd::DoF,
-    //                           Eigen::RowMajor>>
-    Eigen::Map<Eigen::Matrix<double, Groupd::DoF, Groupd::num_parameters>>
+    // Ceres expects GlobalSize×LocalSize row-major; Sophus returns DoF×num_parameters.
+    Eigen::Map<Eigen::Matrix<double, Groupd::num_parameters, Groupd::DoF,
+                               Eigen::RowMajor>>
         jacobian(jacobian_raw);
-    jacobian = T.Dx_this_mul_exp_x_at_0();
+    jacobian = T.Dx_this_mul_exp_x_at_0().transpose();
     return true;
   }
 

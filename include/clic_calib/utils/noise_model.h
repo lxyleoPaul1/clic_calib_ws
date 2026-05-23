@@ -19,11 +19,21 @@ struct NoiseModel {
   double lidar_ranging_sigma_m = 0.02;
   double camera_pixel_sigma = 1.0;
 
+  /** PSDK attitude tangent σ [deg] — Σ_att = diag(σ_roll², σ_pitch², σ_yaw²).
+   *  Defaults (0.2/0.2/1.5°) match synthetic; replace with hover-measured STD
+   *  in config/noise_model.yaml before field calibration. */
+  double attitude_sigma_roll_deg = 0.2;
+  double attitude_sigma_pitch_deg = 0.2;
+  double attitude_sigma_yaw_deg = 1.5;
+
   static NoiseModel FromYaml(const std::string& path);
   static NoiseModel FromConfigDir(const std::string& config_dir);
 
   /** RTK position covariance [m²] used by RTKPositionFactor whitening. */
   Eigen::Matrix3d RtkPositionCovariance() const;
+
+  /** Body-tangent attitude covariance [rad²] for AttitudeFactorPoseForm. */
+  Eigen::Matrix3d AttitudeTangentCovarianceRad2() const;
 
   Eigen::Vector3d SampleRtkNoise(std::mt19937& rng) const;
   double SampleLidarRangeNoise(std::mt19937& rng) const;

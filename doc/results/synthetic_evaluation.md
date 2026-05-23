@@ -1,11 +1,21 @@
 # Synthetic evaluation — noise-regime results (paper tables)
 
-**Branch:** `experiments/noise-regime` (local, post STEP 0–4)  
+> **SEAL:** Synthetic phase **FROZEN** as of **2026-05-23**. No further synthetic-precision tuning. Next: **CalibrationEstimator refactor** (per `two_stage_solver_blueprint.md`) and **real-world experiments**.
+
+**Status:** **FINAL** (2026-05-23) — Config C claim boundaries in `doc/diagnostics/SYNTHETIC_PHASE_SEAL.md`.
+
+**Branch:** `experiments/noise-regime` + `probe/uq-decomposition` (Config C UQ)  
 **Noise model:** `config/noise_model.yaml` — RTK σ_h=10 mm, σ_v=20 mm; LiDAR σ_r=20 mm; camera σ_pix=1.0 px  
 **Prior (default):** extrinsic σ_rot=5°, σ_trans=0.5 m (`config/sensor_rig.yaml`)  
-**Report format:** mean ± std (max) over **N=20** independent seeds unless noted.
+**Report format:** mean ± std (max) over **N=20** independent seeds unless noted (§7: **N=100**).
+
+> **Scope note:** Paper accuracy/UQ narrative anchors on **T_LW** (LiDAR–world). Camera is **secondary**; Gate 1 **A/B excluded** (internal only). Full scope: `section2_claim.md` § Paper presentation scope.
+
+---
 
 > **Do not cite** single-seed or noise-free smoke numbers as methodological accuracy.
+
+> **Presentation scope (frozen):** **T_LW** = primary accuracy + UQ headline. **Camera** = secondary modality (~3 mm CW lateral bias disclosed; ~10⁻² mrad projection impact at V2X range — limitation, not blocker). **Gate 1 A/B** (GT traj, 0/14) = internal diagnostic only; **Config C** rep-fit (10/14, 5/5 translations) = paper-facing. **LW_roll/pitch** 1.45/1.28 = limitations footnote (MC SE ~14%; not re-tested). Details: `section2_claim.md`.
 
 ---
 
@@ -94,7 +104,9 @@ build/local_tests/test_prior_ablation
 | Coplanar pitch | 0.010° vs 29° | **~100%** ✗ |
 | Coplanar t_z | 21.3 mm vs 3254 mm | **~99%** ✗ |
 
-**Finding:** Monte Carlo spread of **point errors** is tiny (init=prior≈GT pinning) while **F_ext⁻¹** reports huge σ → **uncertainty model not validated** at current init; do **not** claim FIM–empirical agreement in paper until init/prior ablation fixed.
+**Finding:** Monte Carlo spread of **point errors** is tiny (init=prior≈GT pinning) while **F_ext⁻¹** reports huge σ → **uncertainty model not validated** for the **joint pipeline** at this init. **Does not apply** to Config C two-stage decomposition UQ (§7).
+
+> **Legacy joint pipeline only** — not Config C two-stage.
 
 **Z-error no longer collapses:** aggregate mean **2.973 mm** (not 0.0 m); per-seed zeros still occur when init locks Z.
 
@@ -134,6 +146,82 @@ build/local_tests/test_prior_ablation
 | Pitch observable via FIM @ 200 m | **No (as tested)** | post_σ_pitch inverted vs coplanar; FIM≠MC |
 | Full geometry-only observability | **No** | §4 prior ablation |
 | Observable with coarse extrinsic prior | **Best supported** | (A) only config with ~11 mm \|T_LW\| under noise |
+| Config C two-stage UQ (decomposition) | **Yes** | §7 — **10/14** zero-mean-qualified @ N=100 |
+| Known limitations (consolidated) | **Disclosed** | §8 — frozen; not chased |
+
+---
+
+## §7 Config C two-stage (FINAL — see `doc/diagnostics/SYNTHETIC_PHASE_SEAL.md`)
+
+**Setup:** Near-field multi-layer, closed-form init, prior-free Stage-2; N=**100** (seeds 13000–13099), rep=13025.  
+**Full tables:** `doc/diagnostics/uq_decomposition.md`
+
+**Headline accuracy:** **T_LW** (LW translations: |bias| ≪ σ).
+
+### Gate 3 — decomposition (primary UQ)
+
+**Headline (zero-mean–qualified):** Σ_fixed + Σ_traj-prop ≈ Σ_total on **3/3 LiDAR–world translations** + **7 rotation/time DoF** = **10/14**.  
+**Not in headline count:** CW_tx, CW_ty (bias); LW_roll, LW_pitch (ratio 1.45, 1.28).
+
+#### LiDAR–world block (headline)
+
+| DoF | std_fixed | std_traj | std_total | ratio | closure |
+|-----|-----------|----------|-----------|-------|---------|
+| **LW_tx** | 1.035 mm | 1.888 mm | **2.022 mm** | 1.134 | ✓ headline |
+| **LW_ty** | 4.287 mm | 4.147 mm | **5.433 mm** | 1.205 | ✓ headline |
+| **LW_tz** | 3.190 mm | 7.553 mm | **7.568 mm** | 1.174 | ✓ headline |
+| LW_yaw | 17.613 mrad | 17.437 mrad | 22.577 mrad | 1.205 | ✓ headline |
+| LW_roll | — | — | 19.958 mrad | **1.45** | edge |
+| LW_pitch | — | — | 22.039 mrad | **1.28** | edge |
+
+#### Camera lateral translation (separate — conditional)
+
+| DoF | mean ± std | ratio | headline? |
+|-----|------------|-------|-----------|
+| **CW_tx** | **−2.90 ± 1.92 mm** | 0.986 | **No** — zero-mean violated |
+| **CW_ty** | **−0.84 ± 0.55 mm** | 1.026 | **No** — zero-mean violated |
+
+Camera lateral translation exhibits a systematic offset of **~3 mm** at N=100; its variance decomposition is reported **conditionally**, as the zero-mean assumption underlying covariance closure is **not satisfied** for these two DoF.
+
+*(Diagnostic only: 12/14 pass ratio band if zero-mean is ignored — do not use as headline.)*
+
+### Decoupling cost (LW headline)
+
+| DoF | Var_traj / Var_total | Var_traj / Var_fixed |
+|-----|----------------------|----------------------|
+| LW_tz | 99.6% | 5.60× |
+| LW_tx | 87.2% | 3.33× |
+
+(CW_tx 98% / 183× reported in full table — secondary; camera bias limits camera claim.)
+
+### Gate 1 — fixed FIM vs Σ_fixed
+
+**Paper-facing:** **Config C only** — rep-fit Stage-1 trajectory @ seed 13025: **10/14**, **5/5 translations** (emp_std/theo_std ∈ [0.7, 1.4]).
+
+**Internal diagnostic only (excluded from paper by choice):** Blocks **A** and **B** (GT trajectory; obs on GT path) → **0/14**. MC spread is systematically below FIM on the GT reference path; useful isolation check, not the operating point.
+
+**Statement for §2:** T_LW accuracy + UQ decomposition validated; fixed FIM matches Σ_fixed; propagation term accounts for remainder; known simulation limitations disclosed (see **§8**).
+
+---
+
+## §8 Synthetic-phase limitations (consolidated, reviewer-safe)
+
+**Status:** **FROZEN** — each item below is **known, disclosed, and explicitly not pursued** further on the synthetic branch. Synthetic phase **FINAL** (2026-05-23); remaining submission gating work is **real-data validation** and production refactor.
+
+| # | Limitation | What we know | Decision |
+|---|------------|--------------|----------|
+| **L1** | **Camera lateral-translation systematic bias** | CW_tx = **−2.90 ± 1.92 mm**, CW_ty = **−0.84 ± 0.55 mm** @ N=100 (\|mean\| > σ). ~3 mm offset is **within roadside V2X projection-error tolerance** (order **10⁻² mrad** at tens-of-metres standoff ≪ typical 0.3–0.5 m budgets). Plausible contributors: reprojection nonlinearity under Gaussian pixel noise, tag-local PnP init bias, idealized obs synthesis — **root cause not isolated**. | **Disclose as limitation; out of scope** for synthetic phase. Camera is a **secondary modality** in the paper; do not headline sub-mm camera extrinsic accuracy. |
+| **L2** | **Two-stage decoupling is statistically sub-optimal** | Stage-1 trajectory error propagates into Stage-2 extrinsics. **Cost quantified:** LW_tz — **99.6%** of total variance from trajectory propagation (Var_traj/Var_fixed **5.6×**); CW_tx — Var_traj/Var_fixed **~183×**. Fixed-trajectory FIM correctly describes only the fixed-noise sub-problem. | **Accepted design trade-off.** Absolute **T_LW** accuracy remains **cm/mm-level** with unbiased LW translation → decoupling is **justified** and the cost is **quantified**, not hidden. |
+| **L3** | **LW_roll / LW_pitch decomposition ratios marginally out of band** | Var_sum/Var_total = **1.45** and **1.28** vs band [0.8, 1.25] @ N=100. Consistent with MC ratio sampling error (SE ≈ **14%**) and/or a small **rotation cross-term** not captured by diagonal decomposition. | **Disclose in limitations footnote; not re-tested** at higher N. Does not affect **3/3 LW translation** UQ headline. |
+| **L4** | **UQ: empirical decomposition authoritative; analytic cross-check partial** | Three-arm MC noise-source decomposition validates Σ_fixed + Σ_traj-prop ≈ Σ_total on **10/14** zero-mean-qualified DoF. Optional **delta-method** (Stage-1 knot FIM + single-knot FD Jacobian) reaches only **7/14** — single-knot linearization **under-estimates** full trajectory propagation. Schur-marginal FIM on rank-deficient F_θθ (**3/14**) is **withdrawn**. | **MC decomposition is authoritative** for §2 UQ. Analytic/delta and Schur paths are diagnostic or appendix-only. |
+| **L5** | **Joint (single-stage) pipeline under noise** | Legacy joint estimator: trajectory RMS **~92 mm**, biased (§2). FIM posterior σ does not match MC on joint pipeline @ yaml init (§3.4). | **Not claimed** for Config C two-stage. Retained as historical contrast only. |
+| **L6** | **Prior dependence (§4)** | Full geometry-only observability **not** supported; coarse extrinsic prior (0.5 m, 5°) needed for best joint-pipeline behaviour. Config C two-stage uses closed-form init instead. | Scoped claim: recoverable **with coarse mounting prior / closed-form init**, not geometry alone. |
+| **L7** | **Gate 1 A/B (GT trajectory) anomaly** | FIM↔MC **0/14** when obs synthesized on GT path (MC spread systematically below FIM). | **Internal diagnostic only** — excluded from paper **by choice**; Config C rep-fit is the operating point. |
+| **L8** | **All results are synthetic** | Noise model, tag detections, RTK, attitude, and flight geometry are simulated. No field distortion, rolling shutter, sync jitter, or detection-dropout effects. | **Real-data validation is the actual gating work for submission** and the next experimental phase. Synthetic phase provides algorithmic and UQ-structure evidence only. |
+
+### Paper-ready limitations paragraph (copy from here)
+
+We report the following known limitations of the synthetic validation phase, none of which are pursued further before submission: (**i**) camera lateral translations exhibit a ~3 mm systematic offset (CW_tx = −2.90 ± 1.92 mm) within roadside V2X projection tolerance but with un-isolated root cause; (**ii**) two-stage decoupling is statistically sub-optimal, with trajectory propagation contributing ~99.6% of LW_tz variance (quantified, not hidden); (**iii**) LW_roll and LW_pitch decomposition ratios marginally exceed the validation band, consistent with MC sampling variance at N=100; (**iv**) uncertainty is validated empirically via noise-source decomposition, while the analytic delta-method cross-check is partial (7/14); and (**v**) all evidence is synthetic—real-world validation is pending.
 
 ---
 

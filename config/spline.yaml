@@ -12,3 +12,11 @@ camera_huber_delta_px: 2.0
 
 # Hard clamp on |t_d| [s] (intersected with spline-support bounds).
 t_d_max_abs_s: 0.1
+
+# PSDK 50 Hz fused-attitude stream (same clock as RTK).
+attitude:
+  # Subsample 50 Hz → ~2 Hz Stage-1 factors (50/25 = 2 Hz).
+  stride: 25
+  # Constant FC transport delay [s]; subtracted at ingest, absorbed with t_d in Stage 2.
+  # Estimate from hover cross-correlation in field; leave 0 for synthetic / aligned logs.
+  transport_delay_s: 0.0

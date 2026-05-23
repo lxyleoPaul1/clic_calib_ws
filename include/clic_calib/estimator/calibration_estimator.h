@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <clic_calib/estimator/attitude_stream_config.h>
 #include <clic_calib/sensor_data/apriltag_observation.h>
+#include <clic_calib/sensor_data/attitude_observation.h>
 #include <clic_calib/sensor_data/lidar_target_observation.h>
 #include <clic_calib/sensor_data/rtk_measurement.h>
 #include <clic_calib/spline/trajectory.h>
@@ -28,11 +30,15 @@ namespace clic_calib {
  */
 class CalibrationEstimator {
  public:
-  /** @param config_path Directory containing lever_arms.yaml, sensor_rig.yaml, spline.yaml, target_geometry.yaml */
+  /** @param config_path Directory with lever_arms, sensor_rig, spline, target_geometry, noise_model YAML. */
   explicit CalibrationEstimator(const std::string& config_path);
   ~CalibrationEstimator();
 
+  /** Loaded from config/spline.yaml (stride, transport_delay_s). */
+  AttitudeStreamConfig attitude_stream_config() const;
+
   void add_rtk_measurements(const std::vector<RTKMeasurement>& rtk);
+  void add_attitude_observations(const std::vector<AttitudeObservation>& attitude);
   void add_lidar_target_observations(
       int sensor_id, const std::vector<LiDARTargetObservation>& obs);
   void add_apriltag_observations(int sensor_id,

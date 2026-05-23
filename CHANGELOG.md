@@ -1,5 +1,64 @@
 # CHANGELOG
 
+## Production estimator refactor — two-stage architecture (`refactor/two-stage-estimator`, 2026-05-23)
+
+### Summary
+
+- **CalibrationEstimator** refactored to validated **two-stage + attitude + closed-form-init** architecture per `doc/architecture/two_stage_solver_blueprint.md`.
+- Probe Config C numbers **reproduced in production modules** (Stage-1, Umeyama/IPPE init, 50/50 cm-level pipeline, UQ decoupling scalars).
+- Five **non-negotiable fixes** preserved and verified (H2 transpose, Ceres ownership scope, tag-local IPPE, knot subset trim, prior-free Stage-2).
+- Real-data **interface contract** only (`AttitudeReader`, `RealDataSession`, `--attitude` CLI) — no field rosbag processing in this PR.
+- **Separate from PR #1** — no changes to PR #1 scope.
+
+### Added (production)
+
+- `Stage1TrajectoryFitter`, `ExtrinsicInitializer`, `ExtrinsicRefiner`, `TwoStagePipeline`, `stage2_extrinsic_fim`, `uq_decomposition`
+- `trajectory_support`, `ceres_so3_scope`, `attitude_stream_config`, `real_data_session`, attitude factors + fixed-traj factors
+- `AttitudeReader`, `AttitudeObservation`, `AttitudeStreamConfig`
+- `doc/architecture/calibration_estimator_refactor.md` — port map, reproduction table, fix verification
+- `scripts/run_production_regression.sh` — production parity regression gate
+
+### Added (tests)
+
+- `test_stage1_trajectory_fitter`, `test_extrinsic_initializer`, `test_two_stage_pipeline`
+- `test_uq_decomposition`, `test_attitude_factor_jacobian`, `test_real_data_interface`
+
+### Changed
+
+- `CalibrationEstimator::RunTwoStageSolve()` when attitude stream present
+- `ceres_local_param.h` — Lie analytic Jacobian **transpose** (H2 assembly fix)
+- `calibrate_offline` — `--attitude`; `config/spline.yaml` attitude stride; `config/noise_model.yaml` Σ_att defaults
+- `scripts/compile_local_tests.sh` — builds production regression binaries
+
+### Validated @ N=50 (seeds 13000–13049) / UQ N=100
+
+| Gate | Production result |
+|------|-------------------|
+| Stage-1 | pos **25.63 mm**, roll/pitch **~0.158°**, yaw **3.35°** |
+| Closed-form T_LW | **0.0168° / 6.56 mm** |
+| Closed-form T_CW | **0.0002° / 0.163 mm** |
+| Config C | **50/50** cm-level, **0/50** wrong-basin |
+| UQ MC | **9/14** ratio band (probe 11–12/14); LW_tz decouple **5.68×**; trans/rot **233×** |
+| Stage-2 FIM | rank **11/14**, cond ~**10¹¹** @ rep seed |
+
+---
+
+## Synthetic phase frozen (`probe/uq-decomposition`, 2026-05-23)
+
+### Status
+
+- **Synthetic phase FINAL / FROZEN** — no further synthetic-precision tuning before ICRA submission.
+- **§2 UQ validated** empirically via three-arm noise-source decomposition (MC N=100): **10/14** DoF zero-mean-qualified (**3/3 LiDAR–world translations** + 7 rotation/time DoF); decoupling cost quantified (e.g., LW_tz 99.6% from trajectory propagation).
+- **Camera lateral translation bias disclosed** as limitation (CW_tx ≈ −2.90 ± 1.92 mm); not headline accuracy; root cause not isolated — out of scope for synthetic phase.
+- Prior Schur-marginal FIM "UQ deferred" conclusion **withdrawn** (rank-deficient F_θθ).
+- **Next:** `CalibrationEstimator` refactor per `doc/architecture/two_stage_solver_blueprint.md` (no PR #1 changes) and real-world experiments.
+
+### Documentation (FINAL 2026-05-23)
+
+- `doc/diagnostics/uq_decomposition.md`, `doc/results/synthetic_evaluation.md` (§8 limitations), `doc/results/section2_claim.md`, `doc/diagnostics/synthetic_phase_summary.md`, `doc/architecture/two_stage_solver_blueprint.md`, `doc/diagnostics/SYNTHETIC_PHASE_SEAL.md`
+
+---
+
 ## Experiments — noise-regime evaluation (`experiments/noise-regime`, 2026-05-20)
 
 ### Added

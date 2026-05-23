@@ -2,14 +2,18 @@
  * clic_calib — offline batch calibration.
  *
  * Usage:
- *   calibrate_offline <config_dir> <obs.clicob> <rtk.csv> [-o calibration.json]
- *                     [--iters N]
+ *   calibrate_offline <config_dir> <obs.clicob> <rtk.csv>
+ *                     [--attitude attitude.csv] [-o calibration.json] [--iters N]
+ *
+ * Real-data streams (interfaces wired; no rosbag parsing in this binary):
+ *   RTK CSV          → Stage-1 position
+ *   attitude CSV     → Stage-1 PSDK fused attitude (required for two-stage)
+ *   observations     → preprocess_rosbag output (sphere centers + AprilTag)
  */
 
 #include <clic_calib/estimator/calibration_estimator.h>
+#include <clic_calib/estimator/real_data_session.h>
 #include <clic_calib/io/calibration_result.h>
-#include <clic_calib/io/observation_archive.h>
-#include <clic_calib/io/rtk_reader.h>
 
 #include <iostream>
 #include <string>
@@ -19,7 +23,7 @@ namespace {
 void PrintUsage(const char* prog) {
   std::cerr << "Usage: " << prog
             << " <config_dir> <observations.clicob> <rtk.csv>"
-            << " [-o calibration.json] [--iters N]\n";
+            << " [--attitude attitude.csv] [-o calibration.json] [--iters N]\n";
 }
 
 }  // namespace
@@ -33,39 +37,47 @@ int main(int argc, char** argv) {
   const std::string config_dir = argv[1];
   const std::string obs_path = argv[2];
   const std::string rtk_path = argv[3];
+  std::string attitude_path;
   std::string output_path = "calibration.json";
   int max_iters = 150;
 
   for (int i = 4; i < argc; ++i) {
     const std::string arg = argv[i];
-    if (arg == "-o" && i + 1 < argc) {
+    if (arg == "--attitude" && i + 1 < argc) {
+      attitude_path = argv[++i];
+    } else if (arg == "-o" && i + 1 < argc) {
       output_path = argv[++i];
     } else if (arg == "--iters" && i + 1 < argc) {
       max_iters = std::stoi(argv[++i]);
     }
   }
 
-  clic_calib::ObservationArchive::LidarBySensor lidar;
-  clic_calib::ObservationArchive::AprilTagBySensor apriltag;
-  if (!clic_calib::ObservationArchive::Read(obs_path, &lidar, &apriltag)) {
-    std::cerr << "Failed to read observation archive: " << obs_path << "\n";
-    return 1;
-  }
-
-  clic_calib::CSVReader rtk_reader;
-  const std::vector<clic_calib::RTKMeasurement> rtk = rtk_reader.read(rtk_path);
-  if (rtk.empty()) {
-    std::cerr << "No RTK measurements in: " << rtk_path << "\n";
+  const clic_calib::RealDataReadinessReport readiness =
+      clic_calib::RealDataSession::CheckReadiness(config_dir);
+  clic_calib::RealDataSession::PrintReadinessReport(std::cout, readiness);
+  if (!readiness.config_dir_ok) {
+    std::cerr << "Config directory incomplete: " << config_dir << "\n";
     return 1;
   }
 
   clic_calib::CalibrationEstimator estimator(config_dir);
-  estimator.add_rtk_measurements(rtk);
-  for (const auto& kv : lidar) {
-    estimator.add_lidar_target_observations(kv.first, kv.second);
+
+  clic_calib::RealDataPaths paths;
+  paths.config_dir = config_dir;
+  paths.rtk_csv = rtk_path;
+  paths.attitude_csv = attitude_path;
+  paths.observations_clicob = obs_path;
+
+  try {
+    clic_calib::RealDataSession::WireInto(&estimator, paths);
+  } catch (const std::exception& e) {
+    std::cerr << "Failed to wire real-data streams: " << e.what() << "\n";
+    return 1;
   }
-  for (const auto& kv : apriltag) {
-    estimator.add_apriltag_observations(kv.first, kv.second);
+
+  if (attitude_path.empty()) {
+    std::cerr << "Warning: no --attitude CSV; falling back to RTK-only joint "
+                 "solve (not valid for field calibration).\n";
   }
 
   const ceres::Solver::Summary summary = estimator.solve(max_iters);

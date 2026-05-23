@@ -6,6 +6,7 @@
 #pragma once
 
 #include <clic_calib/sensor_data/lidar_target_observation.h>
+#include <clic_calib/target/sphere_center_fit.h>
 
 #include <Eigen/Core>
 #include <pcl/point_cloud.h>
@@ -30,6 +31,17 @@ class SphereExtractor {
 
   SphereExtractor() : SphereExtractor(Options{}) {}
   explicit SphereExtractor(const Options& options);
+
+  /**
+   * @brief Fit sphere center from inlier points (same routine as Umeyama init).
+   * SphereExtractor::Extract() produces @p points_L_; pass them here for init.
+   */
+  static bool FitCenterFromPoints(const std::vector<Eigen::Vector3d>& points_l,
+                                  double radius_m, Eigen::Vector3d* center,
+                                  double* fit_rms_m = nullptr) {
+    return sphere_center::FitSphereCenterKnownRadius(points_l, radius_m, center,
+                                                     fit_rms_m);
+  }
 
   /**
    * @brief Extract sphere target points from a LiDAR scan.

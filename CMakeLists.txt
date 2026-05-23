@@ -64,6 +64,7 @@ add_library(clic_calib_data_lib
   src/clic_calib/utils/lever_arm.cpp
   src/clic_calib/utils/noise_model.cpp
   src/clic_calib/io/rtk_reader.cpp
+  src/clic_calib/io/attitude_reader.cpp
   src/clic_calib/io/observation_archive.cpp
   src/clic_calib/io/calibration_result.cpp
 )
@@ -86,12 +87,22 @@ target_link_libraries(clic_calib_target_lib
 add_library(clic_calib_estimator_lib
   src/clic_calib/estimator/calibration_estimator.cpp
   src/clic_calib/estimator/observability_analyzer.cpp
+  src/clic_calib/estimator/stage1_trajectory_fitter.cpp
+  src/clic_calib/estimator/trajectory_stage.cpp
+  src/clic_calib/estimator/extrinsic_initializer.cpp
+  src/clic_calib/estimator/extrinsic_refiner.cpp
+  src/clic_calib/estimator/stage2_extrinsic_fim.cpp
+  src/clic_calib/estimator/two_stage_pipeline.cpp
+  src/clic_calib/estimator/uq_decomposition.cpp
+  src/clic_calib/estimator/attitude_stream_config.cpp
+  src/clic_calib/estimator/real_data_session.cpp
 )
 target_link_libraries(clic_calib_estimator_lib
   clic_calib_spline_lib
   clic_calib_data_lib
   ${CERES_LIBRARIES}
   ${YAML_CPP_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 add_executable(analyze_observability app/analyze_observability.cpp)
@@ -183,6 +194,16 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_prior_ablation test/test_prior_ablation.cpp)
   target_link_libraries(test_prior_ablation
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_uq_decomposition test/test_uq_decomposition.cpp)
+  target_link_libraries(test_uq_decomposition
+    clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
+    ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES} ${OpenCV_LIBS})
+
+  catkin_add_gtest(test_real_data_interface test/test_real_data_interface.cpp)
+  target_link_libraries(test_real_data_interface
     clic_calib_estimator_lib clic_calib_data_lib clic_calib_spline_lib
     ${CERES_LIBRARIES} ${YAML_CPP_LIBRARIES})
 

@@ -1,7 +1,10 @@
 #pragma once
 
+#include "experiments/synthetic_flight_geometry.hpp"
+
 #include <clic_calib/estimator/calibration_estimator.h>
 #include <clic_calib/estimator/observability_analyzer.h>
+#include <clic_calib/sensor_data/attitude_observation.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
@@ -33,6 +36,7 @@ struct ExtrinsicGroundTruth {
 struct SyntheticScenarioBundle {
   BodyTrajectory gt_traj{0.05, 0.0};
   std::vector<RTKMeasurement> rtk;
+  std::vector<AttitudeObservation> attitude_obs;
   std::vector<LiDARTargetObservation> lidar_obs;
   std::vector<AprilTagObservation> tag_obs;
   ExtrinsicGroundTruth gt;
@@ -119,34 +123,42 @@ inline BodyTrajectory MakeMultiLayerLocalTrajectory() {
   return traj;
 }
 
-inline SyntheticScenarioBundle BuildMultiLayerNoisyScenario(
-    uint32_t seed, const RealisticNoiseSpec& noise) {
+inline SyntheticScenarioBundle BuildNoisyScenarioFromGeometry(
+    uint32_t seed_traj, uint32_t seed_obs, const RealisticNoiseSpec& noise,
+    const SyntheticFlightGeometry& geom) {
   const auto levers =
       LeverArmConfig::from_yaml(ConfigDirFromExperiments() + "/lever_arms.yaml");
 
   SyntheticScenarioBundle out;
-  out.gt.T_LW = SE3d(SO3d::rotY(-0.15), Eigen::Vector3d(3.0, -1.0, 0.5));
-  out.gt.T_CW = SE3d(SO3d::rotX(0.1), Eigen::Vector3d(2.0, 1.5, 0.2));
-  out.gt_traj = MakeMultiLayerLocalTrajectory();
+  SensorExtrinsicsFromGeometry(geom, &out.gt.T_LW, &out.gt.T_CW);
+  out.gt.t_d_L_s = 0.030;
+  out.gt.t_d_C_s = -0.015;
+  out.gt_traj = BuildGtTrajectoryFromGeometry(geom);
+
+  const int n_layers =
+      std::max(1, static_cast<int>(geom.flight_layers_m.size()));
+  const double t_end = geom.use_legacy_local_pose || geom.use_legacy_200m_pose
+                           ? 5.0
+                           : n_layers * geom.layer_duration_s;
 
   const double R_ball = 0.10;
   PinholeIntrinsics K{600.0, 600.0, 320.0, 240.0};
   RadtanDistortion dist;
+  std::mt19937 rng_traj(seed_traj);
+  std::mt19937 rng_obs(seed_obs);
 
-  std::mt19937 rng(seed);
-
-  for (double t = 0.2; t <= 4.8; t += 0.1) {
+  for (double t = geom.rtk_dt_s; t <= t_end - 1e-9; t += geom.rtk_dt_s) {
     RTKMeasurement m;
     m.t_world_ = t;
     m.fix_status_ = RTKMeasurement::FixStatus::FIXED;
     m.p_A_W_observed_ =
         out.gt_traj.antenna_position_w(t, levers.L_B_to_A) +
-        noise.SampleRtkNoise(rng);
+        noise.SampleRtkNoise(rng_traj);
     m.covariance_ = noise.RtkPositionCovariance();
     out.rtk.push_back(m);
   }
 
-  for (double t = 0.5; t <= 4.5; t += 0.4) {
+  for (double t = geom.lidar_dt_s; t <= t_end - 1e-9; t += geom.lidar_dt_s) {
     LiDARTargetObservation scan;
     scan.t_sensor_ = t + out.gt.t_d_L_s;
     scan.sensor_id_ = 0;
@@ -154,10 +166,13 @@ inline SyntheticScenarioBundle BuildMultiLayerNoisyScenario(
       const double phi = 2.0 * M_PI * k / 24.0;
       const Eigen::Vector3d p_G_W = out.gt_traj.sphere_center_w(t, levers.L_B_to_G);
       const Eigen::Vector3d p_G_L = out.gt.T_LW * p_G_W;
-      const Eigen::Vector3d dir(std::cos(phi), std::sin(phi), 0.0);
+      Eigen::Vector3d dir(std::cos(phi), std::sin(phi), 0.0);
+      if (!geom.multilayer && geom.use_legacy_200m_pose) {
+        dir.z() = 0.0;
+      }
       const Eigen::Vector3d p_surface = p_G_L + R_ball * dir.normalized();
       const Eigen::Vector3d radial = (p_surface - p_G_L).normalized();
-      scan.points_L_.push_back(p_surface + radial * noise.SampleLidarRangeNoise(rng));
+      scan.points_L_.push_back(p_surface + radial * noise.SampleLidarRangeNoise(rng_obs));
     }
     out.lidar_obs.push_back(scan);
   }
@@ -165,7 +180,7 @@ inline SyntheticScenarioBundle BuildMultiLayerNoisyScenario(
   const Eigen::Vector3d corners[4] = {
       Eigen::Vector3d(-0.025, -0.025, 0.0), Eigen::Vector3d(0.025, -0.025, 0.0),
       Eigen::Vector3d(0.025, 0.025, 0.0), Eigen::Vector3d(-0.025, 0.025, 0.0)};
-  for (double t = 0.6; t <= 4.4; t += 0.35) {
+  for (double t = geom.camera_dt_s; t <= t_end - 1e-9; t += geom.camera_dt_s) {
     AprilTagObservation det;
     det.t_sensor_ = t + out.gt.t_d_C_s;
     det.tag_id_ = 0;
@@ -177,11 +192,55 @@ inline SyntheticScenarioBundle BuildMultiLayerNoisyScenario(
       const SE3d T_WB = out.gt_traj.pose_wb(t);
       const Eigen::Vector3d p_M_C = out.gt.T_CW * (T_WB * L_corner);
       const Eigen::Vector2d uv = ProjectRadtan(p_M_C, K, dist, nullptr);
-      det.corners_pixel_[c] = uv + noise.SamplePixelNoise(rng);
+      det.corners_pixel_[c] = uv + noise.SamplePixelNoise(rng_obs);
     }
     out.tag_obs.push_back(det);
   }
   return out;
+}
+
+inline SyntheticScenarioBundle BuildNoisyScenarioFromGeometry(
+    uint32_t seed, const RealisticNoiseSpec& noise,
+    const SyntheticFlightGeometry& geom) {
+  return BuildNoisyScenarioFromGeometry(seed, seed, noise, geom);
+}
+
+inline SyntheticScenarioBundle BuildMultiLayerNoisyScenario(
+    uint32_t seed, const RealisticNoiseSpec& noise) {
+  return BuildNoisyScenarioFromGeometry(seed, noise,
+                                        LegacyLocalMultiLayerGeometry());
+}
+
+/** Near-field FIM / corrected-pipeline scenario (15 s/layer, 2 Hz). */
+inline SyntheticFlightGeometry NearFieldFimScenarioGeometry() {
+  SyntheticFlightGeometry g = NearFieldMultiLayerGeometry();
+  g.layer_duration_s = 15.0;
+  g.rtk_dt_s = 0.5;
+  g.lidar_dt_s = 0.5;
+  g.camera_dt_s = 0.5;
+  return g;
+}
+
+inline SyntheticScenarioBundle BuildNearFieldFimNoisyScenario(
+    uint32_t seed, const RealisticNoiseSpec& noise) {
+  return BuildNoisyScenarioFromGeometry(seed, noise,
+                                        NearFieldFimScenarioGeometry());
+}
+
+inline SyntheticScenarioBundle BuildNearFieldCoplanarFimNoisyScenario(
+    uint32_t seed, const RealisticNoiseSpec& noise) {
+  SyntheticFlightGeometry g = NearFieldCoplanarGeometry();
+  g.layer_duration_s = 15.0;
+  g.rtk_dt_s = 0.5;
+  g.lidar_dt_s = 0.5;
+  g.camera_dt_s = 0.5;
+  return BuildNoisyScenarioFromGeometry(seed, noise, g);
+}
+
+inline double NearFieldFlightDurationS(const SyntheticFlightGeometry& geom) {
+  const int n_layers =
+      std::max(1, static_cast<int>(geom.flight_layers_m.size()));
+  return n_layers * geom.layer_duration_s;
 }
 
 inline SyntheticScenarioBundle BuildLocalNoisyScenario(uint32_t seed,

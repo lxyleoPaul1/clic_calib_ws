@@ -25,6 +25,18 @@ NoiseModel NoiseModel::FromYaml(const std::string& path) {
   if (node["camera"] && node["camera"]["pixel_sigma"]) {
     model.camera_pixel_sigma = node["camera"]["pixel_sigma"].as<double>();
   }
+  if (node["attitude"]) {
+    const YAML::Node att = node["attitude"];
+    if (att["sigma_roll_deg"]) {
+      model.attitude_sigma_roll_deg = att["sigma_roll_deg"].as<double>();
+    }
+    if (att["sigma_pitch_deg"]) {
+      model.attitude_sigma_pitch_deg = att["sigma_pitch_deg"].as<double>();
+    }
+    if (att["sigma_yaw_deg"]) {
+      model.attitude_sigma_yaw_deg = att["sigma_yaw_deg"].as<double>();
+    }
+  }
   return model;
 }
 
@@ -41,6 +53,17 @@ Eigen::Matrix3d NoiseModel::RtkPositionCovariance() const {
   const double sh = rtk_sigma_horizontal_m;
   const double sv = rtk_sigma_vertical_m;
   cov.diagonal() << sh * sh, sh * sh, sv * sv;
+  return cov;
+}
+
+Eigen::Matrix3d NoiseModel::AttitudeTangentCovarianceRad2() const {
+  const double sr = attitude_sigma_roll_deg * M_PI / 180.0;
+  const double sp = attitude_sigma_pitch_deg * M_PI / 180.0;
+  const double sy = attitude_sigma_yaw_deg * M_PI / 180.0;
+  Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
+  cov(0, 0) = sr * sr;
+  cov(1, 1) = sp * sp;
+  cov(2, 2) = sy * sy;
   return cov;
 }
 
@@ -64,7 +87,9 @@ void NoiseModel::Log(std::ostream& os) const {
   os << "[NoiseModel] rtk σ_h=" << rtk_sigma_horizontal_m
      << " m, σ_v=" << rtk_sigma_vertical_m << " m; lidar σ_r="
      << lidar_ranging_sigma_m << " m; camera σ_pix=" << camera_pixel_sigma
-     << " px (from config/noise_model.yaml)\n";
+     << " px; Σ_att σ_roll/pitch/yaw="
+     << attitude_sigma_roll_deg << "/" << attitude_sigma_pitch_deg << "/"
+     << attitude_sigma_yaw_deg << " deg (config/noise_model.yaml)\n";
 }
 
 }  // namespace clic_calib

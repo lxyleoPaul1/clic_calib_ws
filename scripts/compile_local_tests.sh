@@ -30,6 +30,10 @@ COMMON=(
 
 LIBS=(-lgtest -lceres -lglog -lgflags -lyaml-cpp -lpthread)
 
+OPENCV_LIBS="$(pkg-config --libs opencv4 2>/dev/null || true)"
+OPENCV_CFLAGS="$(pkg-config --cflags opencv4 2>/dev/null || true)"
+COMMON+=(${OPENCV_CFLAGS})
+
 TRAJ_OBJ="${BUILD_DIR}/trajectory.o"
 if [[ ! -f "${TRAJ_OBJ}" ]] || [[ "${ROOT}/src/clic_calib/spline/trajectory.cpp" -nt "${TRAJ_OBJ}" ]]; then
   echo "[compile] trajectory.o"
@@ -39,10 +43,20 @@ fi
 EST_SRCS=(
   "${ROOT}/src/clic_calib/estimator/calibration_estimator.cpp"
   "${ROOT}/src/clic_calib/estimator/observability_analyzer.cpp"
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp"
+  "${ROOT}/src/clic_calib/estimator/trajectory_stage.cpp"
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp"
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp"
+  "${ROOT}/src/clic_calib/estimator/stage2_extrinsic_fim.cpp"
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp"
+  "${ROOT}/src/clic_calib/estimator/uq_decomposition.cpp"
+  "${ROOT}/src/clic_calib/estimator/attitude_stream_config.cpp"
+  "${ROOT}/src/clic_calib/estimator/real_data_session.cpp"
   "${ROOT}/src/clic_calib/spline/trajectory.cpp"
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp"
   "${ROOT}/src/clic_calib/utils/noise_model.cpp"
   "${ROOT}/src/clic_calib/io/rtk_reader.cpp"
+  "${ROOT}/src/clic_calib/io/attitude_reader.cpp"
   "${ROOT}/src/clic_calib/io/observation_archive.cpp"
   "${ROOT}/src/clic_calib/io/calibration_result.cpp"
 )
@@ -61,6 +75,7 @@ FACTOR_TESTS=(
   test_sphere_factor_jacobian
   test_apriltag_factor_jacobian
   test_prior_smoothness_jacobian
+  test_attitude_factor_jacobian
 )
 
 for t in "${FACTOR_TESTS[@]}"; do
@@ -76,7 +91,7 @@ EST_TESTS=(
 )
 
 for t in "${EST_TESTS[@]}"; do
-  build_one "${t}" "${ROOT}/test/${t}.cpp" "${EST_SRCS[@]}"
+  build_one "${t}" "${ROOT}/test/${t}.cpp" "${EST_SRCS[@]}" ${OPENCV_LIBS}
 done
 
 build_one test_td_single_variable \
@@ -86,9 +101,81 @@ build_one test_td_single_variable \
 
 build_one test_noise_regime_local_sweep \
   "${ROOT}/test/experiments/test_noise_regime_local_sweep.cpp" \
-  "${EST_SRCS[@]}"
+  "${EST_SRCS[@]}" ${OPENCV_LIBS}
+
+build_one test_stage1_trajectory_fitter \
+  "${ROOT}/test/test_stage1_trajectory_fitter.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
+
+build_one test_extrinsic_initializer \
+  "${ROOT}/test/test_extrinsic_initializer.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  ${OPENCV_LIBS}
+
+build_one test_two_stage_pipeline \
+  "${ROOT}/test/test_two_stage_pipeline.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
+  "${ROOT}/src/clic_calib/estimator/stage2_extrinsic_fim.cpp" \
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  ${OPENCV_LIBS}
+
+build_one test_uq_decomposition \
+  "${ROOT}/test/test_uq_decomposition.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
+  "${ROOT}/src/clic_calib/estimator/stage2_extrinsic_fim.cpp" \
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
+  "${ROOT}/src/clic_calib/estimator/uq_decomposition.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  ${OPENCV_LIBS}
+
+build_one test_real_data_interface \
+  "${ROOT}/test/test_real_data_interface.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/calibration_estimator.cpp" \
+  "${ROOT}/src/clic_calib/estimator/observability_analyzer.cpp" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/estimator/trajectory_stage.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
+  "${ROOT}/src/clic_calib/estimator/stage2_extrinsic_fim.cpp" \
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
+  "${ROOT}/src/clic_calib/estimator/uq_decomposition.cpp" \
+  "${ROOT}/src/clic_calib/estimator/attitude_stream_config.cpp" \
+  "${ROOT}/src/clic_calib/estimator/real_data_session.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${ROOT}/src/clic_calib/io/rtk_reader.cpp" \
+  "${ROOT}/src/clic_calib/io/attitude_reader.cpp" \
+  "${ROOT}/src/clic_calib/io/observation_archive.cpp" \
+  "${ROOT}/src/clic_calib/io/calibration_result.cpp"
+
+echo "[compile] test_two_stage_probe (probe-only, needs OpenCV)"
+g++ "${COMMON[@]}" \
+  "${ROOT}/test/diagnostic/test_two_stage_probe.cpp" \
+  "${ROOT}/src/clic_calib/spline/trajectory.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${LIBS[@]}" ${OPENCV_LIBS} \
+  -o "${BUILD_DIR}/test_two_stage_probe"
 
 echo "[compile] done → ${BUILD_DIR}/"
+echo "[hint] Production parity gate: ./scripts/run_production_regression.sh"
 
 if [[ "${RUN_AFTER}" -eq 1 ]]; then
   pass=0

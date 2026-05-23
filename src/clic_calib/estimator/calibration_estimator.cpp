@@ -1,5 +1,9 @@
 #include <clic_calib/estimator/calibration_estimator.h>
 
+#include <clic_calib/estimator/attitude_stream_config.h>
+#include <clic_calib/estimator/extrinsic_initializer.h>
+#include <clic_calib/estimator/extrinsic_refiner.h>
+#include <clic_calib/estimator/stage1_trajectory_fitter.h>
 #include <clic_calib/factor/apriltag_reproj_factor.h>
 #include <clic_calib/factor/ceres_local_param.h>
 #include <clic_calib/factor/prior_factor.h>
@@ -301,6 +305,7 @@ struct CalibrationEstimator::Impl {
   LeverArmConfig levers;
   NoiseModel noise_model;
   SplineConfig spline;
+  AttitudeStreamConfig attitude_stream;
   TargetGeometryConfig target;
   std::map<int, LidarRigConfig> lidar_cfg;
   std::map<int, CameraRigConfig> camera_cfg;
@@ -311,6 +316,7 @@ struct CalibrationEstimator::Impl {
   bool enable_extrinsic_prior_factors = true;
 
   std::vector<RTKMeasurement> rtk;
+  std::vector<AttitudeObservation> attitude_obs;
   std::map<int, std::vector<LiDARTargetObservation>> lidar_obs;
   std::map<int, std::vector<AprilTagObservation>> apriltag_obs;
 
@@ -626,6 +632,112 @@ struct CalibrationEstimator::Impl {
     rtk_warm_start_done = true;
   }
 
+  std::pair<double, double> ObservationTimeBounds() const {
+    double t_lo = rtk.front().t_world_;
+    double t_hi = rtk.back().t_world_;
+    for (const auto& a : attitude_obs) {
+      t_lo = std::min(t_lo, a.t_world_);
+      t_hi = std::max(t_hi, a.t_world_);
+    }
+    for (const auto& kv : lidar_obs) {
+      for (const auto& scan : kv.second) {
+        t_lo = std::min(t_lo, scan.t_sensor_);
+        t_hi = std::max(t_hi, scan.t_sensor_);
+      }
+    }
+    for (const auto& kv : apriltag_obs) {
+      for (const auto& det : kv.second) {
+        t_lo = std::min(t_lo, det.t_sensor_);
+        t_hi = std::max(t_hi, det.t_sensor_);
+      }
+    }
+    return {t_lo, t_hi};
+  }
+
+  ceres::Solver::Summary RunTwoStageSolve(int max_iters) {
+    std::vector<double> bar_times;
+    for (const auto& kv : lidar_obs) {
+      for (const auto& scan : kv.second) {
+        bar_times.push_back(scan.t_sensor_);
+      }
+    }
+    for (const auto& kv : apriltag_obs) {
+      for (const auto& det : kv.second) {
+        bar_times.push_back(det.t_sensor_);
+      }
+    }
+    const Stage1TrajectoryInput s1_input =
+        Stage1TrajectoryInput::FromObservationStreams(rtk, attitude_obs,
+                                                      bar_times);
+
+    Stage1TrajectoryConfig s1_cfg;
+    s1_cfg.knot_interval_s = spline.knot_interval_s;
+    s1_cfg.alpha_p = spline.alpha_p;
+    s1_cfg.alpha_R = spline.alpha_R;
+    s1_cfg.attitude_stride = attitude_stream.stride;
+    s1_cfg.trim_to_observation_support = true;
+
+    const Stage1TrajectoryResult s1 =
+        Stage1TrajectoryFitter::Fit(s1_input, levers, s1_cfg);
+    if (!s1.summary.IsSolutionUsable()) {
+      std::cerr << "[CalibrationEstimator] Stage-1 failed:\n"
+                << s1.summary.FullReport() << std::endl;
+      return s1.summary;
+    }
+    trajectory = s1.trajectory;
+    trajectory_rtk_seeded = true;
+    rtk_warm_start_done = true;
+
+    if (lidar_obs.empty() || apriltag_obs.empty()) {
+      throw std::runtime_error(
+          "RunTwoStageSolve: need LiDAR and camera observations");
+    }
+    const int lidar_id = lidar_obs.begin()->first;
+    const int camera_id = apriltag_obs.begin()->first;
+    const LidarRigConfig& lc = lidar_cfg.at(lidar_id);
+    const CameraRigConfig& cc = camera_cfg.at(camera_id);
+
+    ExtrinsicInitializerConfig init_cfg;
+    init_cfg.sphere_radius_m = target.sphere_radius_m;
+    init_cfg.nominal_t_d_L_s = lc.initial_t_d_s;
+    init_cfg.nominal_t_d_C_s = cc.initial_t_d_s;
+    init_cfg.camera_K = cc.K;
+    init_cfg.camera_dist = cc.dist;
+
+    const GeometricInitReport geo = ExtrinsicInitializer::FromGeometric(
+        *trajectory, lidar_obs.at(lidar_id), apriltag_obs.at(camera_id),
+        levers, init_cfg);
+
+    ExtrinsicRefinerConfig refine_cfg;
+    refine_cfg.sphere_radius_m = target.sphere_radius_m;
+    refine_cfg.t_d_max_abs_s = spline.t_d_max_abs_s;
+    refine_cfg.lidar_cauchy_scale = spline.lidar_cauchy_scale;
+    refine_cfg.camera_huber_delta_px = spline.camera_huber_delta_px;
+    refine_cfg.camera_K = cc.K;
+    refine_cfg.camera_dist = cc.dist;
+    refine_cfg.max_iterations = max_iters;
+
+    const ExtrinsicRefinerResult s2 = ExtrinsicRefiner::Refine(
+        *trajectory, lidar_obs.at(lidar_id), apriltag_obs.at(camera_id),
+        levers, noise_model, geo.init, refine_cfg);
+
+    if (!s2.converged) {
+      std::cerr << "[CalibrationEstimator] Stage-2 failed:\n"
+                << s2.summary.FullReport() << std::endl;
+      return s2.summary;
+    }
+
+    lidar_state[lidar_id].q = s2.lidar.q;
+    lidar_state[lidar_id].t = s2.lidar.t;
+    lidar_state[lidar_id].t_d = s2.lidar.t_d;
+    camera_state[camera_id].q = s2.camera.q;
+    camera_state[camera_id].t = s2.camera.t;
+    camera_state[camera_id].t_d = s2.camera.t_d;
+
+    ClearProblem();
+    return s2.summary;
+  }
+
   ~Impl() { ClearProblem(); }
 };
 
@@ -641,6 +753,8 @@ CalibrationEstimator::CalibrationEstimator(const std::string& config_path)
   impl_->noise_model = NoiseModel::FromConfigDir(impl_->config_dir);
   impl_->noise_model.Log();
   impl_->spline = LoadSplineConfig(prefix + "spline.yaml");
+  impl_->attitude_stream = AttitudeStreamConfig::FromConfigDir(impl_->config_dir);
+  impl_->attitude_stream.Log(std::cout);
   impl_->target = LoadTargetGeometry(prefix + "target_geometry.yaml");
   LoadSensorRig(prefix + "sensor_rig.yaml", &impl_->lidar_cfg, &impl_->camera_cfg);
 
@@ -674,6 +788,16 @@ void CalibrationEstimator::add_rtk_measurements(
   impl_->rtk.insert(impl_->rtk.end(), rtk.begin(), rtk.end());
   std::sort(impl_->rtk.begin(), impl_->rtk.end(),
             [](const RTKMeasurement& a, const RTKMeasurement& b) {
+              return a.t_world_ < b.t_world_;
+            });
+}
+
+void CalibrationEstimator::add_attitude_observations(
+    const std::vector<AttitudeObservation>& attitude) {
+  impl_->attitude_obs.insert(impl_->attitude_obs.end(), attitude.begin(),
+                             attitude.end());
+  std::sort(impl_->attitude_obs.begin(), impl_->attitude_obs.end(),
+            [](const AttitudeObservation& a, const AttitudeObservation& b) {
               return a.t_world_ < b.t_world_;
             });
 }
@@ -734,6 +858,10 @@ ceres::Solver::Summary CalibrationEstimator::solve(int max_iters) {
   if (impl_->rtk.empty()) {
     throw std::runtime_error("solve: no RTK measurements");
   }
+  if (!impl_->attitude_obs.empty()) {
+    return impl_->RunTwoStageSolve(max_iters);
+  }
+
   impl_->RunRtkWarmStart();
 
   const double t0 = impl_->rtk.front().t_world_;
@@ -773,6 +901,10 @@ double CalibrationEstimator::get_t_d_lidar(int sensor_id) const {
 
 double CalibrationEstimator::get_t_d_camera(int sensor_id) const {
   return impl_->camera_state.at(sensor_id).t_d;
+}
+
+AttitudeStreamConfig CalibrationEstimator::attitude_stream_config() const {
+  return impl_->attitude_stream;
 }
 
 std::shared_ptr<Trajectory> CalibrationEstimator::get_trajectory() const {

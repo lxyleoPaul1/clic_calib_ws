@@ -1,5 +1,5 @@
-# Single source of truth for synthetic noise injection and factor whitening.
-# Simulator (scripts/simulate_uav_trajectory.py) and CalibrationEstimator must stay in sync.
+# Single source of truth for observation noise / whitening (simulator + estimator).
+# Field campaign: replace attitude sigmas with hover-measured STD (see §5 checklist).
 
 rtk:
   sigma_horizontal_m: 0.01
@@ -10,3 +10,11 @@ lidar:
 
 camera:
   pixel_sigma: 1.0
+
+# PSDK fused attitude — anisotropic body-tangent Σ_att = diag(σ²).
+# DEFAULTS match synthetic validation (0.2°/0.2°/1.5°).
+# REAL SYSTEM: measure on hover before calibration; update these three values.
+attitude:
+  sigma_roll_deg: 0.2    # ← replace with measured hover roll STD [deg]
+  sigma_pitch_deg: 0.2   # ← replace with measured hover pitch STD [deg]
+  sigma_yaw_deg: 1.5       # ← replace with measured hover yaw STD [deg]
