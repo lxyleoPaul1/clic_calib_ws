@@ -151,34 +151,40 @@ build_one test_two_stage_pipeline \
   "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
-# Deferred to T-ITS / Phase 2 (untracked WIP): phase15_*, clicob_*, body_cluster_extractor,
+PHASE3_EXTRA=(
+  "${TRAJ_OBJ}"
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp"
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp"
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp"
+  "${ROOT}/src/clic_calib/estimator/stage2_extrinsic_fim.cpp"
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp"
+  "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp"
+  "${ROOT}/src/clic_calib/target/drone_model_registration.cpp"
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp"
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
+  "${TEMPORAL_CORR_OBJ}"
+  ${OPENCV_LIBS}
+)
+
+# Deferred to T-ITS / Phase 2: clicob_*, body_cluster_extractor,
 # board_free_e2e, real_data_interface (needs sensor_rig_config).
 
 build_one test_phase3_dual_lidar_experiment_a \
   "${ROOT}/test/test_phase3_dual_lidar_experiment_a.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
+  "${PHASE3_EXTRA[@]}"
 
 build_one test_phase3_dual_lidar_phase_b \
   "${ROOT}/test/test_phase3_dual_lidar_phase_b.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
+  "${PHASE3_EXTRA[@]}"
+
+build_one test_phase15_main_table \
+  "${ROOT}/test/test_phase15_main_table.cpp" \
+  "${PHASE3_EXTRA[@]}" \
+  "${ROOT}/src/clic_calib/config/body_model_config.cpp"
+
+build_one test_phase15_joint_opt_audit \
+  "${ROOT}/test/test_phase15_joint_opt_audit.cpp" \
+  "${PHASE3_EXTRA[@]}"
 
 build_one test_uq_decomposition \
   "${ROOT}/test/test_uq_decomposition.cpp" \
@@ -210,5 +216,10 @@ if [[ "${RUN_AFTER}" -eq 1 ]]; then
     fi
   done
   echo "---- Passed: ${pass}  Failed: ${fail} ----"
+  if [[ "${fail}" -eq 0 ]]; then
+    echo "[gate] frozen-baseline isolation audit..."
+    bash "${ROOT}/scripts/verify_frozen_baseline_isolation.sh" || fail=1
+  fi
+  echo "---- Final: ${pass} passed, isolation_fail=$((fail > 0 ? 1 : 0)) ----"
   exit "${fail}"
 fi

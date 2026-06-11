@@ -174,23 +174,31 @@ assumption (simulation)*.
 ## ⑧ Coplanar observability gate (joint FIM λ_min)
 
 **Test:** `test_observability_synthetic` · `CoplanarAblationIsDegenerate` · prints
-`[lambda_audit]` on every run.
+`[lambda_audit]`; `FimLinkAuditMulti` prints `[fim_audit]` (link-set bisection).
 
-| Configuration | λ_min (measured @ seal build) | Notes |
-|---------------|------------------------------|-------|
-| **Multi-layer** (well observed) | **0.002520** | joint FIM floor |
+| Configuration | λ_min (measured @ `b01b08f`, seed 123) | Notes |
+|---------------|----------------------------------------|-------|
+| **Multi-layer** (well observed) | **1.07357** | joint FIM floor |
 | **Coplanar** (degenerate ablation) | **~0** (numerical null) | coplanar/multi **≪ 0.1** ✓ |
 
 **Threshold audit (Phase 0):**
 
 - Gate path = **joint `CalibrationEstimator` FIM** with **independent** `RTKPositionFactor`
-  @ 0.1 s spacing — **not** Stage-1 Prais–Winsten (PW is Stage-1 only; PW before/after
-  does not apply to this test).
-- `fbe701f` lowered absolute floor **0.01 → 0.003**; at seal build **multi = 0.002520
-  < 0.003** → **0.003 fails** (not “凑绿”, measured regression on joint FIM).
-- **Adopt 0.0025** absolute floor: margin **1.008×** over measured multi (**tight**).
-  Primary degeneracy check remains **coplanar < 0.1 × multi** (strong separation).
-- **Do not cite** “358× margin”; that came from an incomplete link set during debug.
+  @ 0.1 s spacing — **not** Stage-1 PW (**PW does not apply**: `attitude_n=0`, no
+  `RunTwoStageSolve`). FIM audit: `rtk_n=47`, `F_ext=12×12`, `ceres_residuals=1189`,
+  `|T_LW|_mm=3203.58`, full spectrum via `scripts/diagnose_lambda_link.sh`.
+- **426× post-mortem:** seal-churn `--run` reported **0.002520**; isolated /
+  `diagnose_lambda_link.sh` / `--gtest_filter=CoplanarAblation*` → **1.07357**.
+  Minimal vs full EST_SRCS: **bit-identical** FIM — **not** link-set physics.
+- **Root cause (fixed @ gtest guard):** gtest + Ceres both use gflags.
+  `InitGoogleTest` / `--gtest_filter` (especially colon-separated lists) leaves gflags in a
+  bad state; Ceres' first `Solve` then re-parses argv and linearizes at garbage points
+  (λ_min: 0.0025, 0.006, −1e−17). **Not** EST_SRCS link-set, not PW, not test-file ordering.
+  Fix: `test/gtest_ceres_guard.hpp` — `ClicResetGflagsForCeres` before **and after**
+  `InitGoogleTest` (single `InitGoogleLogging`) + `num_threads=1`. Gate:
+  `scripts/verify_frozen_baseline_isolation.sh`. **Do not lower threshold to 0.0025.**
+- `fbe701f` lowered absolute floor **0.01 → 0.003**. Measured multi **1.07357 ≫ 0.003**
+  (margin **~358×**). **Keep 0.003**; coplanar/multi ratio remains the primary degeneracy check.
 
 ---
 

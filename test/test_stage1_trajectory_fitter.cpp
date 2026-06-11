@@ -2,6 +2,8 @@
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
 #include <clic_calib/utils/sophus_utils.hpp>
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -177,7 +179,4 @@ TEST(Stage1TrajectoryFitter, ReproducesProbeStage1Metrics) {
   EXPECT_LT(max_rot_diff_mrad.Mean(), 50.0);
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

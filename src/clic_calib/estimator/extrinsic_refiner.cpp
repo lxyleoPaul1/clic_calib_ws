@@ -229,6 +229,7 @@ Eigen::Vector3d ExtrinsicRefiner::OptimizeJointBodyLeverAtFixedExtrinsic(
   ceres::Solver::Options opts;
   opts.max_num_iterations = cfg.max_iterations;
   opts.minimizer_progress_to_stdout = false;
+  opts.num_threads = 1;
   ceres::Solver::Summary summary;
   ceres::Solve(opts, scope.problem.get(), &summary);
   return L_B_joint;
@@ -285,6 +286,7 @@ ExtrinsicRefinerResult ExtrinsicRefiner::Refine(
   ceres::Solver::Options opts;
   opts.max_num_iterations = cfg.max_iterations;
   opts.minimizer_progress_to_stdout = false;
+  opts.num_threads = 1;
   ceres::Solve(opts, scope.problem.get(), &out.summary);
   out.converged = out.summary.IsSolutionUsable();
   return out;

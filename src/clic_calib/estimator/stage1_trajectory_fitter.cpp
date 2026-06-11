@@ -308,6 +308,7 @@ Stage1TrajectoryResult Stage1TrajectoryFitter::Fit(
     ceres::Solver::Options opts_solver;
     opts_solver.max_num_iterations = max_iters;
     opts_solver.minimizer_progress_to_stdout = false;
+    opts_solver.num_threads = 1;
     ceres::Solve(opts_solver, &problem, summary);
   };
 

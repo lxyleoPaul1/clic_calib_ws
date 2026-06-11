@@ -2,6 +2,8 @@
 #include <clic_calib/estimator/real_data_session.h>
 #include <clic_calib/io/attitude_reader.h>
 #include <clic_calib/utils/noise_model.h>
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -116,3 +118,5 @@ TEST(RealDataInterface, EstimatorAcceptsAllStreamTypes) {
 
   SUCCEED();
 }
+
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

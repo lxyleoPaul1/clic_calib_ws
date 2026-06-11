@@ -9,6 +9,8 @@
  */
 
 #include "experiments/noise_regime_common.hpp"
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -126,7 +128,4 @@ TEST(NoiseRegimeLocal, RealisticNoiseSeedSweepWithFullMetrics) {
   SUCCEED();
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

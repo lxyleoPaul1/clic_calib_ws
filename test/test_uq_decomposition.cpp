@@ -5,6 +5,8 @@
 #include <clic_calib/estimator/uq_decomposition.h>
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -71,7 +73,7 @@ bool RefineStage2AtInit(
     return false;
   }
   *s2_out = clic_calib::ExtrinsicRefiner::Refine(
-      traj, sc.lidar_obs, sc.tag_obs, levers, noise, init, cfg.refine);
+      traj, sc.lidar_obs, {}, sc.tag_obs, levers, noise, init, cfg.refine);
   return s2_out->converged;
 }
 
@@ -419,3 +421,5 @@ TEST(UqDecomposition, FixedTrajMcVsFimAtRep) {
   EXPECT_GE(fixed_mc.converged, num_seeds - 5);
   EXPECT_GE(in_band, 10);
 }
+
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

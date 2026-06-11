@@ -8,6 +8,8 @@
 #include "diagnostic/two_stage_probe_common.hpp"
 #include "experiments/noise_regime_common.hpp"
 #include "experiments/synthetic_flight_geometry.hpp"
+#include "gtest_ceres_guard.hpp"
+
 
 #include <clic_calib/factor/attitude_factor_pose_form.h>
 
@@ -4694,7 +4696,4 @@ TEST(TwoStageClosedFormInit, Gate4DeltaMethodCrossCheck) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

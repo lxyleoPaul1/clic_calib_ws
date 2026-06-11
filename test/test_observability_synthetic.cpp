@@ -5,10 +5,15 @@
 #include <clic_calib/utils/noise_model.h>
 #include <clic_calib/utils/sophus_utils.hpp>
 
+#include "gtest_ceres_guard.hpp"
+
 #include <gtest/gtest.h>
+
+#include <cstdlib>
 
 #include <cmath>
 #include <filesystem>
+#include <iostream>
 #include <random>
 #include <string>
 #include <vector>
@@ -150,6 +155,9 @@ SyntheticScenario MakeSyntheticScenario(const clic_calib::BodyTrajectory& gt_tra
 struct AnalysisResult {
   clic_calib::ObservabilityReport report;
   clic_calib::AnalysisParameterLayout layout;
+  clic_calib::SE3d T_LW_after_solve;
+  int ceres_num_residuals = 0;
+  double ceres_final_cost = 0.0;
 };
 
 AnalysisResult RunObservabilityAnalysis(const SyntheticScenario& scenario) {
@@ -157,13 +165,45 @@ AnalysisResult RunObservabilityAnalysis(const SyntheticScenario& scenario) {
   estimator.add_rtk_measurements(scenario.rtk);
   estimator.add_lidar_target_observations(0, scenario.lidar_obs);
   estimator.add_apriltag_observations(0, scenario.tag_obs);
-  estimator.solve(1000);
+  const ceres::Solver::Summary summary = estimator.solve(1000);
 
   AnalysisResult out;
   out.layout = estimator.analysis_parameter_layout();
   clic_calib::ObservabilityAnalyzer analyzer;
   out.report = analyzer.analyze(estimator);
+  out.T_LW_after_solve = estimator.get_T_LW(0);
+  out.ceres_final_cost = summary.final_cost;
+  const ceres::Problem& problem = estimator.problem();
+  out.ceres_num_residuals = problem.NumResiduals();
   return out;
+}
+
+void PrintFimAudit(const char* link_tag, const AnalysisResult& ar,
+                   const SyntheticScenario& sc) {
+  const auto& r = ar.report;
+  const auto& ly = ar.layout;
+  std::cout << "[fim_audit] link=" << link_tag << " rtk_n=" << sc.rtk.size()
+            << " lidar_scans=" << sc.lidar_obs.size()
+            << " tag_n=" << sc.tag_obs.size()
+            << " attitude_n=0"
+            << " num_local=" << ly.num_local_parameters
+            << " ext_n=" << ly.extrinsic_local_indices.size()
+            << " rest_n=" << ly.rest_local_indices.size()
+            << " ceres_residuals=" << ar.ceres_num_residuals
+            << " ceres_cost=" << ar.ceres_final_cost
+            << " F_ext=" << r.information_matrix.rows() << "x"
+            << r.information_matrix.cols() << " lambda_min=" << r.lambda_min
+            << " lambda_max=" << r.lambda_max << " cond=" << r.condition_number
+            << " pdop=" << r.pdop_ext
+            << " |T_LW|_mm=" << ar.T_LW_after_solve.translation().norm() * 1e3
+            << " eigenvalues=[";
+  for (int i = 0; i < r.eigenvalues.size(); ++i) {
+    if (i > 0) {
+      std::cout << ",";
+    }
+    std::cout << r.eigenvalues(i);
+  }
+  std::cout << "]\n";
 }
 
 double DominanceOnPitchOrZTranslation(
@@ -182,19 +222,6 @@ double DominanceOnPitchOrZTranslation(
 
 }  // namespace
 
-TEST(ObservabilitySynthetic, MultiLayerFlightIsWellObserved) {
-  const SyntheticScenario scenario = MakeSyntheticScenario(
-      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
-  const AnalysisResult result = RunObservabilityAnalysis(scenario);
-  const auto& report = result.report;
-
-  EXPECT_EQ(report.information_matrix.rows(), 12);
-  EXPECT_EQ(report.information_matrix.cols(), 12);
-  EXPECT_GT(report.lambda_min, 0.0);
-  EXPECT_GT(report.pdop_ext, 0.0);
-  EXPECT_LT(report.condition_number, 1e8);
-}
-
 TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
   const SyntheticScenario multi = MakeSyntheticScenario(
       MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
@@ -212,9 +239,8 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
                 multi_result.report.lambda_min)
             << "\n";
 
-  // Joint FIM gate: CalibrationEstimator + independent RTK factors @ 0.1 s
-  // (not Stage-1 PW). Measured multi λ_min ≈ 0.00252 @ seal; 0.003 fails.
-  EXPECT_GT(multi_result.report.lambda_min, 0.0025);
+  // Joint FIM gate: CalibrationEstimator RTK-only path (no attitude → no PW).
+  EXPECT_GT(multi_result.report.lambda_min, 0.003);
   EXPECT_LT(coplanar_result.report.lambda_min,
             multi_result.report.lambda_min * 0.1)
       << "multi lambda_min=" << multi_result.report.lambda_min
@@ -237,7 +263,28 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
       << "expected identifiable pitch/z components in worst eigenvectors";
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+TEST(ObservabilitySynthetic, MultiLayerFlightIsWellObserved) {
+  const SyntheticScenario scenario = MakeSyntheticScenario(
+      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
+  const AnalysisResult result = RunObservabilityAnalysis(scenario);
+  const auto& report = result.report;
+
+  EXPECT_EQ(report.information_matrix.rows(), 12);
+  EXPECT_EQ(report.information_matrix.cols(), 12);
+  EXPECT_GT(report.lambda_min, 0.0);
+  EXPECT_GT(report.pdop_ext, 0.0);
+  EXPECT_LT(report.condition_number, 1e8);
 }
+
+TEST(ObservabilitySynthetic, FimLinkAuditMulti) {
+  const SyntheticScenario multi = MakeSyntheticScenario(
+      MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
+  const AnalysisResult multi_result = RunObservabilityAnalysis(multi);
+  const char* link_tag = std::getenv("CLIC_FIM_LINK_TAG");
+  if (!link_tag) {
+    link_tag = "unknown";
+  }
+  PrintFimAudit(link_tag, multi_result, multi);
+}
+
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

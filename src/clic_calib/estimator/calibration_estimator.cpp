@@ -585,6 +585,7 @@ struct CalibrationEstimator::Impl {
     opts.function_tolerance = 1e-8;
     opts.gradient_tolerance = 1e-10;
     opts.minimizer_progress_to_stdout = false;
+    opts.num_threads = 1;
 
     ceres::Solver::Summary summary;
     if (problem && problem->NumResidualBlocks() > 0) {

@@ -3,6 +3,8 @@
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
 #include <clic_calib/utils/sophus_utils.hpp>
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -123,7 +125,7 @@ TEST(ExtrinsicInitializer, ReproducesProbeUmeyamaPreIteration) {
     try {
       const clic_calib::GeometricInitReport geo =
           clic_calib::ExtrinsicInitializer::FromGeometric(
-              *s1.trajectory, sc.lidar_obs, sc.tag_obs, levers, init_cfg);
+              *s1.trajectory, sc.lidar_obs, {}, sc.tag_obs, levers, init_cfg);
       const auto e =
           ExtrinsicError(geo.init.T_LW, sc.gt.T_LW);
       umeyama_rot_deg.Push(e.rot_rad.norm() * 180.0 / M_PI);
@@ -195,7 +197,7 @@ TEST(ExtrinsicInitializer, ReproducesProbePnPPreIteration) {
     try {
       const clic_calib::GeometricInitReport geo =
           clic_calib::ExtrinsicInitializer::FromGeometric(
-              *s1.trajectory, sc.lidar_obs, tags, levers, init_cfg);
+              *s1.trajectory, sc.lidar_obs, {}, tags, levers, init_cfg);
       const auto e =
           ExtrinsicError(geo.init.T_CW, sc.gt.T_CW);
       pnp_rot_deg.Push(e.rot_rad.norm() * 180.0 / M_PI);
@@ -219,7 +221,4 @@ TEST(ExtrinsicInitializer, ReproducesProbePnPPreIteration) {
   EXPECT_NEAR(pnp_trans_mm.Mean(), 0.16, 2.0);
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

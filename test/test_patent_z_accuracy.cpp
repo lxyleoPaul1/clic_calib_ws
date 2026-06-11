@@ -6,6 +6,8 @@
  */
 
 #include "experiments/noise_regime_common.hpp"
+#include "gtest_ceres_guard.hpp"
+
 
 #include <clic_calib/estimator/observability_analyzer.h>
 #include <clic_calib/utils/camera_projection.h>
@@ -295,7 +297,4 @@ TEST(PatentZAccuracy, MultiLayerVsCoplanarObservabilityAt200m) {
   SUCCEED();
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

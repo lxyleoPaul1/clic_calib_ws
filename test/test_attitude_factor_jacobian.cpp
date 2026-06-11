@@ -2,6 +2,8 @@
 #include <clic_calib/factor/attitude_factor_pose_form.h>
 #include <clic_calib/spline/spline_segment.h>
 #include <clic_calib/utils/sophus_utils.hpp>
+#include "gtest_ceres_guard.hpp"
+
 
 #include <gtest/gtest.h>
 
@@ -59,7 +61,4 @@ TEST(AttitudeFactorPoseForm, JacobianMatchesNumeric) {
                                                    1e-5, 1e-5));
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }
