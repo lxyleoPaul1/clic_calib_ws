@@ -1,8 +1,7 @@
 # Board-free calibration — frozen baseline (Phase A → B handoff)
 
-**Status:** Simulation **SEALED** — code baseline `33f9647`, build/doc seal commit
-on `refactor/two-stage-estimator` (see git log after Phase 0). Do not mutate frozen
-numbers; next step is field data.
+**Status:** Simulation **SEALED** — code baseline `33f9647`, build/doc seal
+**`5f19793`**. Do not mutate frozen numbers; next step is field data.
 
 **Rep seed:** `13025` unless noted. **Noise:** `config/noise_model.yaml`.
 
@@ -197,7 +196,7 @@ assumption (simulation)*.
 
 ## Simulation phase status
 
-**SEALED** after `33f9647` + seal commit. No further synthetic tuning. Next step:
+**SEALED** after `33f9647` + **`5f19793`**. No further synthetic tuning. Next step:
 **field data** per `doc/multi_lidar_board_free_blueprint.md` §真机对角双 Ruby 实验清单.
 
 ---
