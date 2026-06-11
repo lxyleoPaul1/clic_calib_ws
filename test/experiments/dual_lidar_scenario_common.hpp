@@ -38,7 +38,68 @@ struct DualLidarPhase3Scenario {
   DualLidarGtExtrinsics gt_lidars;
   std::map<std::string, std::vector<BodyClusterObservation>> body_by_sensor;
   uint32_t sim_seed = 0;
+  /** Coherent RTK system bias injected for this draw (zero if white-noise only). */
+  Eigen::Vector3d rtk_coherent_bias_W = Eigen::Vector3d::Zero();
 };
+
+/** §7.2 MC: white per-sample RTK noise vs coherent trajectory-wide system bias. */
+enum class RtkMcInjectionMode {
+  kWhiteNoisePerSample,
+  kCoherentSystemBiasOnly,
+  kCoherentSystemBiasPlusWhiteNoise,
+};
+
+struct RtkMcInjectionConfig {
+  RtkMcInjectionMode mode = RtkMcInjectionMode::kWhiteNoisePerSample;
+  /** One draw per MC seed, applied to every RTK epoch (m). */
+  double system_bias_sigma_h_m = 0.05;
+  double system_bias_sigma_v_m = 0.10;
+};
+
+inline Eigen::Vector3d SampleRtkCoherentSystemBiasW(
+    const RtkMcInjectionConfig& cfg, std::mt19937* rng) {
+  if (!rng) {
+    return Eigen::Vector3d::Zero();
+  }
+  std::normal_distribution<double> nh(0.0, cfg.system_bias_sigma_h_m);
+  std::normal_distribution<double> nv(0.0, cfg.system_bias_sigma_v_m);
+  return Eigen::Vector3d(nh(*rng), nh(*rng), nv(*rng));
+}
+
+/** Mean RTK injection δp = p_obs − p_gt per serial sector [m]. */
+struct RtkSegmentPerturbationMeans {
+  Eigen::Vector3d ne = Eigen::Vector3d::Zero();
+  Eigen::Vector3d sw = Eigen::Vector3d::Zero();
+  int n_ne = 0;
+  int n_sw = 0;
+};
+
+inline RtkSegmentPerturbationMeans MeanInjectedRtkPerturbationBySector(
+    const DualLidarPhase3Scenario& ds, const LeverArmConfig& levers) {
+  RtkSegmentPerturbationMeans out;
+  const double t_split = ds.geom.sector_duration_s;
+  Eigen::Vector3d sum_ne = Eigen::Vector3d::Zero();
+  Eigen::Vector3d sum_sw = Eigen::Vector3d::Zero();
+  for (const auto& m : ds.sc.rtk) {
+    const Eigen::Vector3d p_gt =
+        ds.sc.gt_traj.antenna_position_w(m.t_world_, levers.L_B_to_A);
+    const Eigen::Vector3d delta = m.p_A_W_observed_ - p_gt;
+    if (m.t_world_ < t_split - 1e-6) {
+      sum_ne += delta;
+      ++out.n_ne;
+    } else {
+      sum_sw += delta;
+      ++out.n_sw;
+    }
+  }
+  if (out.n_ne > 0) {
+    out.ne = sum_ne / static_cast<double>(out.n_ne);
+  }
+  if (out.n_sw > 0) {
+    out.sw = sum_sw / static_cast<double>(out.n_sw);
+  }
+  return out;
+}
 
 /** GT-template AprilTag stream (same schema as BuildNoisyScenarioFromGeometry). */
 inline void AppendTemplateTagObservations(
@@ -118,7 +179,8 @@ inline DualLidarPhase3Scenario BuildDualDiagonalScenario(
     uint32_t seed, const NoiseModel& noise,
     const DualDiagonalFlightGeometry& geom,
     const two_stage_probe::SplineConfig& spline_cfg,
-    const two_stage_probe::CoarseExtrinsicInit& t_d_nominal) {
+    const two_stage_probe::CoarseExtrinsicInit& t_d_nominal,
+    const RtkMcInjectionConfig& rtk_inj = {}) {
   const auto levers =
       LeverArmConfig::from_yaml(ConfigDirFromExperiments() + "/lever_arms.yaml");
 
@@ -147,13 +209,29 @@ inline DualLidarPhase3Scenario BuildDualDiagonalScenario(
   const double t_end = 2.0 * geom.sector_duration_s;
   std::mt19937 rng_traj(seed);
 
+  const bool use_coherent =
+      rtk_inj.mode == RtkMcInjectionMode::kCoherentSystemBiasOnly ||
+      rtk_inj.mode == RtkMcInjectionMode::kCoherentSystemBiasPlusWhiteNoise;
+  const bool use_white =
+      rtk_inj.mode == RtkMcInjectionMode::kWhiteNoisePerSample ||
+      rtk_inj.mode == RtkMcInjectionMode::kCoherentSystemBiasPlusWhiteNoise;
+  if (use_coherent) {
+    out.rtk_coherent_bias_W = SampleRtkCoherentSystemBiasW(rtk_inj, &rng_traj);
+  }
+
   for (double t = geom.rtk_dt_s; t <= t_end - 1e-9; t += geom.rtk_dt_s) {
     RTKMeasurement m;
     m.t_world_ = t;
     m.fix_status_ = RTKMeasurement::FixStatus::FIXED;
+    Eigen::Vector3d inj = Eigen::Vector3d::Zero();
+    if (use_coherent) {
+      inj += out.rtk_coherent_bias_W;
+    }
+    if (use_white) {
+      inj += noise.SampleRtkNoise(rng_traj);
+    }
     m.p_A_W_observed_ =
-        out.sc.gt_traj.antenna_position_w(t, levers.L_B_to_A) +
-        noise.SampleRtkNoise(rng_traj);
+        out.sc.gt_traj.antenna_position_w(t, levers.L_B_to_A) + inj;
     m.covariance_ = noise.RtkPositionCovariance();
     out.sc.rtk.push_back(m);
   }

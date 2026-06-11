@@ -198,6 +198,19 @@ build_one test_phase3_dual_lidar_experiment_a \
   "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
+build_one test_phase3_dual_lidar_phase_b \
+  "${ROOT}/test/test_phase3_dual_lidar_phase_b.cpp" \
+  "${TRAJ_OBJ}" \
+  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
+  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
+  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
+  "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp" \
+  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
+  ${OPENCV_LIBS}
+
 build_one test_phase15_joint_opt_audit \
   "${ROOT}/test/test_phase15_joint_opt_audit.cpp" \
   "${TRAJ_OBJ}" \

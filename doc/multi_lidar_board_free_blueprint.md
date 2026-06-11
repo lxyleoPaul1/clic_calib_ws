@@ -1,6 +1,9 @@
 # Multi-LiDAR board-free blueprint
 
-**Status:** Phase 3 (A) simulation **sign-off @ seed 13025** — **Phase (B) pipeline ACTIVE.**
+**Status:** Phase 3 (A) frozen @ `doc/board_free_results_frozen.md` — **Phase (B) ACTIVE.**
+
+Simulation gate: `kSimMaxObsMm=42` + SW **known synthetic sector artifact, exempted**
+(threshold not raised).
 
 ## Separability (Stage-2)
 

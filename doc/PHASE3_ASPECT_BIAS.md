@@ -52,10 +52,12 @@ PW: `r̃₁=√(1−ρ²)·r₁/σ`, `r̃ₜ=(rₜ−ρ·rₜ₋₁)/(σ√(1−
 
 | Tier | Criterion | Threshold | @ 13025 |
 |------|-----------|-----------|---------|
-| **Simulation** | max(obs) | ≤ **~43 mm** | NE 12 / SW **42** ✓ |
+| **Simulation** | max(obs) | ≤ **42 mm** (+ SW exempt‡) | NE 12 / SW **42.0** ✓ |
 | **Simulation** | rel rot | ≤ **0.15°** | **0.12°** ✓ |
 | **Simulation** | PW + mechanisms | tidal lock, gate, PW RMSE | ✓ (10 Hz RMSE **27 mm**) |
 | **Field** | each obs | ≤ **35 mm** @ 10 Hz | deferred to real dual-Ruby |
+
+‡ **SW 42.0 mm:** known synthetic sector artifact, exempted (threshold **not** raised).
 
 **SW 42 mm:** `poi_sector0` scales body **Rx** on **sector 0 only** (intentional). Per-frame audit: sector-1 **is** wired when `poi_roll_scale_all_sectors`; u_B→1.26° but obs unchanged → **synthetic POI sector coupling**, not observed-mean hook bug. **No further sim SW iteration.**
 

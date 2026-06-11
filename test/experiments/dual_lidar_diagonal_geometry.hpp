@@ -82,6 +82,8 @@ struct DualDiagonalFlightGeometry : SyntheticFlightGeometry {
   DualDiagonalFlightMode dual_flight_mode = DualDiagonalFlightMode::kConstantHeading;
   /** Duration of NE-sector flight, then SW-sector (same length). */
   double sector_duration_s = 45.0;
+  /** Optional temporal overlap [s]: both LiDAR sectors active near t=sector_duration. */
+  double sector_overlap_s = 0.0;
   /** Route yaw for 飞行甲/丙 [rad] (body heading along NE→SW diagonal). */
   double route_yaw_rad = M_PI / 4.0;
   /** Orbit center offset from intersection along sector bisector [m]. */
@@ -185,6 +187,18 @@ inline DualDiagonalFlightGeometry DiagonalFlightE_Geometry() {
   g.pitch_amp_rad = 0.40;
   g.roll_amp_rad = 0.25;
   g.poi_sector0_attitude_scale = 0.35;
+  return g;
+}
+
+/**
+ * 飞行戊 + temporal overlap: both LiDARs see the drone for @p sector_overlap_s
+ * around the sector handoff (board-free does not require spatial FOV overlap).
+ */
+inline DualDiagonalFlightGeometry DiagonalFlightE_OverlapGeometry(
+    double overlap_s = 10.0) {
+  DualDiagonalFlightGeometry g = DiagonalFlightE_Geometry();
+  g.label = "diagonal_flight_E_poi_overlap";
+  g.sector_overlap_s = overlap_s;
   return g;
 }
 
@@ -342,12 +356,13 @@ inline BodyTrajectory BuildGtTrajectoryDualDiagonal(
 
 inline bool IsTimeInSensorSector(double t_world, const std::string& sensor_key,
                                  const DualDiagonalFlightGeometry& geom) {
-  const int sector = SectorIndexFromTime(t_world, geom);
+  const double t_split = geom.sector_duration_s;
+  const double ov = std::max(0.0, geom.sector_overlap_s);
   if (sensor_key == "lidar_NE") {
-    return sector == 0;
+    return t_world < t_split + ov - 1e-6;
   }
   if (sensor_key == "lidar_SW") {
-    return sector == 1;
+    return t_world >= t_split - ov - 1e-6;
   }
   return false;
 }
