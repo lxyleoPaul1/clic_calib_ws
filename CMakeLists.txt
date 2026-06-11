@@ -101,6 +101,12 @@ add_library(clic_calib_estimator_lib
   src/clic_calib/estimator/uq_decomposition.cpp
   src/clic_calib/estimator/attitude_stream_config.cpp
   src/clic_calib/estimator/real_data_session.cpp
+  src/clic_calib/estimator/observed_mean_gate.cpp
+  src/clic_calib/estimator/body_gated_calibration.cpp
+  src/clic_calib/estimator/multi_lidar_body_calibration.cpp
+  src/clic_calib/estimator/relative_extrinsic.cpp
+  src/clic_calib/target/body_centroid_analysis.cpp
+  src/clic_calib/target/drone_model_registration.cpp
 )
 target_link_libraries(clic_calib_estimator_lib
   clic_calib_spline_lib

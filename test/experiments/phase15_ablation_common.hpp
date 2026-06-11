@@ -6,8 +6,10 @@
 #include "experiments/noise_regime_common.hpp"
 
 #include <clic_calib/config/body_model_config.h>
+#include <clic_calib/estimator/body_gated_calibration.h>
 #include <clic_calib/estimator/extrinsic_initializer.h>
 #include <clic_calib/estimator/extrinsic_refiner.h>
+#include <clic_calib/estimator/observed_mean_gate.h>
 #include <clic_calib/estimator/stage1_trajectory_fitter.h>
 #include <clic_calib/estimator/two_stage_pipeline.h>
 #include <clic_calib/target/body_centroid_analysis.h>
@@ -20,6 +22,10 @@
 namespace clic_calib {
 namespace experiments {
 
+using clic_calib::ComputeUBAzimuthStdDeg;
+using clic_calib::ObservedMeanAspectGate;
+using clic_calib::ShouldApplyObservedMeanPB;
+
 struct Phase15Scenario {
   SyntheticScenarioBundle sc;
   std::vector<BodyClusterObservation> body_cluster;
@@ -31,59 +37,6 @@ struct Phase15TlwMetrics {
   double trans_mm = 0.0;
   bool stage2_ok = false;
 };
-
-/**
- * Gate observed-mean p_B on yaw spread (data-calibrated: works @ ~0.78, diverges @ ~0.32).
- */
-struct ObservedMeanAspectGate {
-  double min_yaw_circular_variance = 0.65;
-  /** POI / tidal-lock: u_B azimuth stable + pitch diversity (flight 戊). */
-  double max_u_B_azimuth_std_deg = 5.0;
-  double min_pitch_std_deg_for_locked_look = 14.0;
-};
-
-inline bool ShouldApplyObservedMeanPB(
-    const TrajectoryAttitudeSpread& spread,
-    const ObservedMeanAspectGate& gate = {},
-    double u_B_azimuth_std_deg = -1.0) {
-  if (spread.yaw_circular_variance >= gate.min_yaw_circular_variance) {
-    return true;
-  }
-  if (u_B_azimuth_std_deg > 0.1 &&
-      u_B_azimuth_std_deg <= gate.max_u_B_azimuth_std_deg &&
-      spread.pitch_std_deg >= gate.min_pitch_std_deg_for_locked_look) {
-    return true;
-  }
-  return false;
-}
-
-inline double ComputeUBAzimuthStdDeg(
-    const BodyTrajectory& traj, double t_d_L_s,
-    const Eigen::Vector3d& lidar_post_W,
-    const std::vector<BodyClusterObservation>& observations) {
-  if (observations.empty()) {
-    return -1.0;
-  }
-  double mean = 0.0;
-  std::vector<double> az_deg;
-  az_deg.reserve(observations.size());
-  for (const auto& obs : observations) {
-    const double t_world = obs.t_sensor_ - t_d_L_s;
-    const SE3d T_WB = traj.pose_wb(t_world);
-    const Eigen::Vector3d u_B = LidarDirectionInBody(
-        T_WB, T_WB.translation(), lidar_post_W);
-    const double a = std::atan2(u_B.y(), u_B.x()) * 180.0 / M_PI;
-    az_deg.push_back(a);
-    mean += a;
-  }
-  mean /= static_cast<double>(az_deg.size());
-  double sq = 0.0;
-  for (double a : az_deg) {
-    const double d = a - mean;
-    sq += d * d;
-  }
-  return std::sqrt(sq / static_cast<double>(az_deg.size()));
-}
 
 struct Phase15BodyCalibOutcome {
   Phase15TlwMetrics metrics;
@@ -472,6 +425,19 @@ struct GatedObservedMeanCalibResult {
   double observed_refine_cost = 0.0;
 };
 
+inline BodyGatedCalibrationInput InputFromPhase15(
+    const Phase15Scenario& ps,
+    const std::vector<BodyClusterObservation>& body_obs) {
+  BodyGatedCalibrationInput in;
+  in.rtk = ps.sc.rtk;
+  in.attitude = ps.sc.attitude_obs;
+  in.tags = ps.sc.tag_obs;
+  in.body_obs = body_obs;
+  in.nominal_t_d_L_s = ps.sc.gt.t_d_L_s;
+  in.gt_T_LW = &ps.sc.gt.T_LW;
+  return in;
+}
+
 inline GatedObservedMeanCalibResult CalibrateBodyGatedObservedMean(
     const Phase15Scenario& ps, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& base_cfg,
@@ -480,40 +446,23 @@ inline GatedObservedMeanCalibResult CalibrateBodyGatedObservedMean(
     const ObservedMeanAspectGate& gate = {},
     double u_B_azimuth_std_deg = -1.0,
     const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
-  GatedObservedMeanCalibResult out;
-  out.aspect = ComputeAttitudeSpreadAtObservations(
-      ps.sc.gt_traj, ps.sc.gt.t_d_L_s, body_obs);
-  TwoStagePipelineConfig cent_cfg = base_cfg;
-  if (temporal_sqrt_info_scales != nullptr) {
-    cent_cfg.refine.body_temporal_sqrt_info_scales =
-        *temporal_sqrt_info_scales;
-  }
-  const auto cent = RunBodyPathOutcome(ps, levers, noise, cent_cfg,
-                                       BodyLeverArmMode::kNominalYaml, body_obs);
-  out.centroid_only = cent.metrics;
-  out.T_LW_centroid = cent.T_LW_est;
-  out.centroid_refine_cost = cent.refine_cost;
-  out.observed_mean = cent.metrics;
-  out.T_LW_observed_mean = cent.T_LW_est;
-  if (!ShouldApplyObservedMeanPB(out.aspect, gate, u_B_azimuth_std_deg)) {
-    out.observed_mean_applied = false;
-    return out;
-  }
-  const auto iter = RunBodyPathIterativeObservedMean(
-      ps, levers, noise, base_cfg, body_obs, observed_mean_iters,
+  const GatedBodyCalibrationResult prod = clic_calib::CalibrateBodyGatedObservedMean(
+      InputFromPhase15(ps, body_obs), levers, noise, base_cfg,
+      observed_mean_iters, gate, u_B_azimuth_std_deg,
       temporal_sqrt_info_scales);
-  const bool trans_ok =
-      iter.final_metrics.stage2_ok &&
-      iter.final_metrics.trans_mm <= cent.metrics.trans_mm + 1e-3;
-  const bool cost_ok =
-      iter.final_metrics.stage2_ok &&
-      iter.final_refine_cost <= cent.refine_cost + 1e-6;
-  if (trans_ok && cost_ok) {
-    out.observed_mean = iter.final_metrics;
-    out.T_LW_observed_mean = iter.final_T_LW;
-    out.observed_refine_cost = iter.final_refine_cost;
-    out.observed_mean_applied = true;
-  }
+  GatedObservedMeanCalibResult out;
+  out.aspect = prod.aspect;
+  out.centroid_only.rot_deg = prod.centroid_only.rot_deg;
+  out.centroid_only.trans_mm = prod.centroid_only.trans_mm;
+  out.centroid_only.stage2_ok = prod.centroid_only.stage2_ok;
+  out.observed_mean.rot_deg = prod.observed_mean.rot_deg;
+  out.observed_mean.trans_mm = prod.observed_mean.trans_mm;
+  out.observed_mean.stage2_ok = prod.observed_mean.stage2_ok;
+  out.T_LW_centroid = prod.T_LW_centroid;
+  out.T_LW_observed_mean = prod.T_LW_observed_mean;
+  out.observed_mean_applied = prod.observed_mean_applied;
+  out.centroid_refine_cost = prod.centroid_refine_cost;
+  out.observed_refine_cost = prod.observed_refine_cost;
   return out;
 }
 
