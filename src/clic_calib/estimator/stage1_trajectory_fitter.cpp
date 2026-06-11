@@ -4,7 +4,9 @@
 #include <clic_calib/estimator/trajectory_support.h>
 #include <clic_calib/factor/attitude_factor_pose_form.h>
 #include <clic_calib/factor/rtk_position_factor.h>
+#include <clic_calib/factor/rtk_position_prais_winsten_factor.h>
 #include <clic_calib/factor/trajectory_smoothness_factor.h>
+#include <clic_calib/utils/temporal_correlation.h>
 #include <clic_calib/spline/spline_segment.h>
 
 #include <algorithm>
@@ -17,6 +19,7 @@ namespace {
 
 using trajectory_support::GetActiveKnotPointers;
 using trajectory_support::InitStage1TrajectoryFromAttitudeStream;
+using trajectory_support::MinSpacingInSortedTimes;
 using trajectory_support::ReseedKnotPositionsFromRtkLeverArm;
 using trajectory_support::Stage1KnotDt;
 using trajectory_support::TrimTrajectoryToObservedSupport;
@@ -24,6 +27,76 @@ using trajectory_support::TrimTrajectoryToObservedSupport;
 SplineSegmentMeta<SplineOrder> TrajectoryMeta(const BodyTrajectory& traj) {
   return SplineSegmentMeta<SplineOrder>(traj.minTimeNs(), traj.getDtNs(),
                                         traj.numKnots());
+}
+
+void AddStage1RtkPraisWinstenFactors(
+    ceres::Problem* problem,
+    std::vector<std::unique_ptr<ceres::CostFunction>>* owned,
+    const std::vector<RTKMeasurement>& rtk, double rho,
+    const BodyTrajectory& traj, const Eigen::Vector3d& L_B_to_A,
+    const SplineSegmentMeta<SplineOrder>& meta,
+    const std::function<void(const std::array<double*, SplineOrder>&)>&
+        register_so3) {
+  std::vector<const RTKMeasurement*> fixed;
+  fixed.reserve(rtk.size());
+  for (const auto& m : rtk) {
+    if (m.fix_status_ == RTKMeasurement::FixStatus::FIXED) {
+      fixed.push_back(&m);
+    }
+  }
+  if (fixed.empty()) {
+    return;
+  }
+  std::sort(fixed.begin(), fixed.end(),
+            [](const RTKMeasurement* a, const RTKMeasurement* b) {
+              return a->t_world_ < b->t_world_;
+            });
+
+  for (size_t i = 0; i < fixed.size(); ++i) {
+    const RTKMeasurement& m = *fixed[i];
+    const int64_t t_ns = static_cast<int64_t>(m.t_world_ * S_TO_NS);
+    std::array<double*, SplineOrder> rot_knots{};
+    std::array<double*, SplineOrder> pos_knots{};
+    if (!GetActiveKnotPointers(traj, t_ns, &rot_knots, &pos_knots)) {
+      continue;
+    }
+    if (i == 0) {
+      owned->push_back(
+          std::make_unique<analytic_derivative::RTKPositionPraisWinstenFirstFactor>(
+              t_ns, m.p_A_W_observed_, m.covariance_, L_B_to_A, rho, meta));
+      std::vector<double*> blocks;
+      blocks.insert(blocks.end(), rot_knots.begin(), rot_knots.end());
+      blocks.insert(blocks.end(), pos_knots.begin(), pos_knots.end());
+      problem->AddResidualBlock(owned->back().get(), nullptr, blocks);
+      register_so3(rot_knots);
+      continue;
+    }
+
+    const RTKMeasurement& m_prev = *fixed[i - 1];
+    const int64_t t_prev_ns =
+        static_cast<int64_t>(m_prev.t_world_ * S_TO_NS);
+    std::array<double*, SplineOrder> rot_prev{};
+    std::array<double*, SplineOrder> pos_prev{};
+    if (!GetActiveKnotPointers(traj, t_prev_ns, &rot_prev, &pos_prev)) {
+      continue;
+    }
+    const analytic_derivative::RtkSplineKnotUnion knot_union =
+        analytic_derivative::BuildRtkSplineKnotUnion(rot_prev, pos_prev,
+                                                     rot_knots, pos_knots);
+    owned->push_back(
+        std::make_unique<
+            analytic_derivative::RTKPositionPraisWinstenInnovationFactor>(
+            t_prev_ns, t_ns, m_prev.p_A_W_observed_, m.p_A_W_observed_,
+            m.covariance_, L_B_to_A, rho, meta, knot_union));
+    std::vector<double*> blocks;
+    blocks.insert(blocks.end(), knot_union.rot_blocks.begin(),
+                 knot_union.rot_blocks.end());
+    blocks.insert(blocks.end(), knot_union.pos_blocks.begin(),
+                 knot_union.pos_blocks.end());
+    problem->AddResidualBlock(owned->back().get(), nullptr, blocks);
+    register_so3(rot_prev);
+    register_so3(rot_knots);
+  }
 }
 
 void AddStage1AttitudeFactors(
@@ -129,8 +202,25 @@ Stage1TrajectoryResult Stage1TrajectoryFitter::Fit(
     bool rotation_constant = false;
   };
 
+  double rtk_rho = cfg.rtk_ar1_rho;
+  bool use_pw = cfg.use_rtk_prais_winsten;
+  if (use_pw) {
+    std::vector<double> rtk_times;
+    rtk_times.reserve(input.rtk.size());
+    for (const auto& m : input.rtk) {
+      if (m.fix_status_ == RTKMeasurement::FixStatus::FIXED) {
+        rtk_times.push_back(m.t_world_);
+      }
+    }
+    const double min_rtk_dt = MinSpacingInSortedTimes(rtk_times);
+    if (min_rtk_dt >= 0.2) {
+      use_pw = false;
+    }
+  }
+
   auto build_and_solve = [&](int max_iters, const Stage1BuildOpts& opts,
-                             ceres::Solver::Summary* summary) {
+                             ceres::Solver::Summary* summary,
+                             double pw_rho) {
     CeresSo3ProblemScope scope;
     ceres::Problem& problem = *scope.problem;
     std::set<double*> so3_registered;
@@ -148,25 +238,32 @@ Stage1TrajectoryResult Stage1TrajectoryFitter::Fit(
     const SplineSegmentMeta<SplineOrder> meta = TrajectoryMeta(*traj);
 
     if (opts.include_rtk) {
-      for (const auto& m : input.rtk) {
-        if (m.fix_status_ != RTKMeasurement::FixStatus::FIXED) {
-          continue;
+      if (use_pw) {
+        AddStage1RtkPraisWinstenFactors(
+            &problem, &scope.owned_costs, input.rtk, pw_rho, *traj,
+            levers.L_B_to_A, meta, register_so3_knots);
+      } else {
+        for (const auto& m : input.rtk) {
+          if (m.fix_status_ != RTKMeasurement::FixStatus::FIXED) {
+            continue;
+          }
+          const int64_t t_ns = static_cast<int64_t>(m.t_world_ * S_TO_NS);
+          std::array<double*, SplineOrder> rot_knots{};
+          std::array<double*, SplineOrder> pos_knots{};
+          if (!GetActiveKnotPointers(*traj, t_ns, &rot_knots, &pos_knots)) {
+            continue;
+          }
+          scope.owned_costs.push_back(
+              std::make_unique<analytic_derivative::RTKPositionFactor>(
+                  t_ns, m.p_A_W_observed_, m.covariance_, levers.L_B_to_A,
+                  meta));
+          std::vector<double*> blocks;
+          blocks.insert(blocks.end(), rot_knots.begin(), rot_knots.end());
+          blocks.insert(blocks.end(), pos_knots.begin(), pos_knots.end());
+          problem.AddResidualBlock(scope.owned_costs.back().get(), nullptr,
+                                   blocks);
+          register_so3_knots(rot_knots);
         }
-        const int64_t t_ns = static_cast<int64_t>(m.t_world_ * S_TO_NS);
-        std::array<double*, SplineOrder> rot_knots{};
-        std::array<double*, SplineOrder> pos_knots{};
-        if (!GetActiveKnotPointers(*traj, t_ns, &rot_knots, &pos_knots)) {
-          continue;
-        }
-        scope.owned_costs.push_back(
-            std::make_unique<analytic_derivative::RTKPositionFactor>(
-                t_ns, m.p_A_W_observed_, m.covariance_, levers.L_B_to_A, meta));
-        std::vector<double*> blocks;
-        blocks.insert(blocks.end(), rot_knots.begin(), rot_knots.end());
-        blocks.insert(blocks.end(), pos_knots.begin(), pos_knots.end());
-        problem.AddResidualBlock(scope.owned_costs.back().get(), nullptr,
-                                 blocks);
-        register_so3_knots(rot_knots);
       }
     }
 
@@ -215,11 +312,18 @@ Stage1TrajectoryResult Stage1TrajectoryFitter::Fit(
   };
 
   ceres::Solver::Summary attitude_pass;
-  build_and_solve(120, Stage1BuildOpts{false, true, true, false}, &attitude_pass);
+  build_and_solve(120, Stage1BuildOpts{false, true, true, false}, &attitude_pass,
+                  0.0);
   ReseedKnotPositionsFromRtkLeverArm(traj.get(), input.rtk, levers.L_B_to_A);
 
+  if (use_pw && rtk_rho < 0.0) {
+    rtk_rho = EstimateRtkResidualAr1Rho(*traj, input.rtk, levers.L_B_to_A);
+  }
+  rtk_rho = std::clamp(rtk_rho, 0.0, 0.995);
+
   ceres::Solver::Summary rtk_pass;
-  build_and_solve(120, Stage1BuildOpts{true, false, true, true}, &rtk_pass);
+  build_and_solve(120, Stage1BuildOpts{true, false, true, true}, &rtk_pass,
+                  rtk_rho);
 
   if (cfg.trim_to_observation_support) {
     out.trajectory = TrimTrajectoryToObservedSupport(*traj, input.t_obs_lo,

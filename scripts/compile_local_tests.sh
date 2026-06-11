@@ -40,6 +40,14 @@ if [[ ! -f "${TRAJ_OBJ}" ]] || [[ "${ROOT}/src/clic_calib/spline/trajectory.cpp"
   g++ "${COMMON[@]}" -c "${ROOT}/src/clic_calib/spline/trajectory.cpp" -o "${TRAJ_OBJ}"
 fi
 
+TEMPORAL_CORR_OBJ="${BUILD_DIR}/temporal_correlation.o"
+if [[ ! -f "${TEMPORAL_CORR_OBJ}" ]] ||
+   [[ "${ROOT}/src/clic_calib/utils/temporal_correlation.cpp" -nt "${TEMPORAL_CORR_OBJ}" ]]; then
+  echo "[compile] temporal_correlation.o"
+  g++ "${COMMON[@]}" -c "${ROOT}/src/clic_calib/utils/temporal_correlation.cpp" \
+    -o "${TEMPORAL_CORR_OBJ}"
+fi
+
 EST_SRCS=(
   "${ROOT}/src/clic_calib/estimator/calibration_estimator.cpp"
   "${ROOT}/src/clic_calib/estimator/observability_analyzer.cpp"
@@ -55,6 +63,7 @@ EST_SRCS=(
   "${ROOT}/src/clic_calib/spline/trajectory.cpp"
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp"
   "${ROOT}/src/clic_calib/utils/noise_model.cpp"
+  "${TEMPORAL_CORR_OBJ}"
   "${ROOT}/src/clic_calib/io/rtk_reader.cpp"
   "${ROOT}/src/clic_calib/io/attitude_reader.cpp"
   "${ROOT}/src/clic_calib/io/observation_archive.cpp"
@@ -119,7 +128,8 @@ build_one test_stage1_trajectory_fitter \
   "${TRAJ_OBJ}" \
   "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
+  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}"
 
 build_one test_extrinsic_initializer \
   "${ROOT}/test/test_extrinsic_initializer.cpp" \
@@ -128,6 +138,7 @@ build_one test_extrinsic_initializer \
   "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_two_stage_pipeline \
@@ -140,6 +151,7 @@ build_one test_two_stage_pipeline \
   "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 PHASE15_SRCS=(
@@ -156,6 +168,7 @@ build_one test_board_free_e2e_comparison \
   "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_phase15_main_table \
@@ -169,6 +182,7 @@ build_one test_phase15_main_table \
   "${PHASE15_SRCS[@]}" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_phase3_dual_lidar_experiment_a \
@@ -181,7 +195,7 @@ build_one test_phase3_dual_lidar_experiment_a \
   "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${ROOT}/src/clic_calib/utils/temporal_correlation.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_phase15_joint_opt_audit \
@@ -192,6 +206,7 @@ build_one test_phase15_joint_opt_audit \
   "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_phase15_contradiction_audit \
@@ -205,6 +220,7 @@ build_one test_phase15_contradiction_audit \
   "${PHASE15_SRCS[@]}" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_phase15_ablation \
@@ -218,6 +234,7 @@ build_one test_phase15_ablation \
   "${PHASE15_SRCS[@]}" \
   "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
   "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
+  "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
 build_one test_uq_decomposition \

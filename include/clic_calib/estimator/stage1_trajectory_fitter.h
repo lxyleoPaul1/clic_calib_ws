@@ -20,6 +20,10 @@ struct Stage1TrajectoryConfig {
   int attitude_stride = 25;
   /** H3: drop knots outside observation support after solve. */
   bool trim_to_observation_support = true;
+  /** AR(1) Prais–Winsten differenced RTK whitening (native high-rate). */
+  bool use_rtk_prais_winsten = true;
+  /** Lag-1 ρ; < 0 ⇒ estimate from RTK residuals after attitude pass. */
+  double rtk_ar1_rho = -1.0;
 };
 
 struct Stage1TrajectoryResult {

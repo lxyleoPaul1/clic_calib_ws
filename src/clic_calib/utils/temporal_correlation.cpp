@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace clic_calib {
 namespace {
@@ -93,6 +94,44 @@ std::vector<double> ComputeTemporalDecorrelationScales(
   }
   NormalizeToEffectiveSampleCount(&scales, rho);
   return scales;
+}
+
+double EstimateRtkResidualAr1Rho(const BodyTrajectory& traj,
+                                const std::vector<RTKMeasurement>& rtk,
+                                const Eigen::Vector3d& L_B_to_A) {
+  std::vector<const RTKMeasurement*> fixed;
+  fixed.reserve(rtk.size());
+  for (const auto& m : rtk) {
+    if (m.fix_status_ == RTKMeasurement::FixStatus::FIXED) {
+      fixed.push_back(&m);
+    }
+  }
+  if (fixed.size() < 3) {
+    return 0.0;
+  }
+  std::sort(fixed.begin(), fixed.end(),
+            [](const RTKMeasurement* a, const RTKMeasurement* b) {
+              return a->t_world_ < b->t_world_;
+            });
+
+  std::array<std::vector<double>, 3> axis_series;
+  for (const RTKMeasurement* m : fixed) {
+    const Eigen::Vector3d r =
+        m->p_A_W_observed_ - traj.antenna_position_w(m->t_world_, L_B_to_A);
+    for (int k = 0; k < 3; ++k) {
+      axis_series[static_cast<size_t>(k)].push_back(r[k]);
+    }
+  }
+  double rho_sum = 0.0;
+  int rho_count = 0;
+  for (const auto& series : axis_series) {
+    const double rho = EstimateLag1Autocorrelation(series);
+    if (std::isfinite(rho)) {
+      rho_sum += rho;
+      ++rho_count;
+    }
+  }
+  return rho_count > 0 ? rho_sum / static_cast<double>(rho_count) : 0.0;
 }
 
 std::vector<double> UniformAr1DecorrelationScales(size_t count, double rho) {

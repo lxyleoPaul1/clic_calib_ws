@@ -92,7 +92,7 @@ struct DualDiagonalFlightGeometry : SyntheticFlightGeometry {
   /** 飞行丁: commanded yaw sweep span per sector [rad] (independent of orbit translation). */
   double sector_yaw_span_rad = 1.95 * M_PI;
   /**
-   * 飞行戊 POI: scale pitch/roll on NE sector (sector 0) only; 1=full, 0=locked.
+   * 飞行戊 POI: scale roll on both sectors; 1=full, 0=locked (NE+SW tight lock).
    */
   double poi_sector0_attitude_scale = 1.0;
 };
@@ -270,7 +270,7 @@ inline SE3d PoseWbFromDualDiagonalGeometry(
     R = SO3d::rotZ(yaw_poi);
     if (geom.high_attitude_variation) {
       double roll_scale = 1.0;
-      if (sector == 0 && geom.poi_sector0_attitude_scale >= 0.0) {
+      if (geom.poi_sector0_attitude_scale >= 0.0) {
         roll_scale = geom.poi_sector0_attitude_scale;
       }
       R = R * SO3d::rotY(geom.pitch_amp_rad * std::sin(2.0 * M_PI * u)) *

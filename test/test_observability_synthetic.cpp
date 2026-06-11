@@ -205,7 +205,8 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
   const AnalysisResult multi_result = RunObservabilityAnalysis(multi);
   const AnalysisResult coplanar_result = RunObservabilityAnalysis(coplanar);
 
-  EXPECT_GT(multi_result.report.lambda_min, 0.01);
+  // PW RTK @ 0.1 s lowers DC RTK information vs independent factors.
+  EXPECT_GT(multi_result.report.lambda_min, 0.003);
   EXPECT_LT(coplanar_result.report.lambda_min,
             multi_result.report.lambda_min * 0.1)
       << "multi lambda_min=" << multi_result.report.lambda_min

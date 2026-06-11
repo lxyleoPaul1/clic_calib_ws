@@ -355,8 +355,9 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
           high_rate_policy);
 
   std::cout << "\n=== 戊 fix applied (full-frame 10 Hz) ===\n";
-  std::cout << "  cov: σ_r²/N_pts whitening ON; AR(1) decorr on bias norm\n";
-  std::cout << "  NE sector POI attitude scale="
+  std::cout << "  Stage-1: native RTK + Prais–Winsten AR(1) differenced whitening\n";
+  std::cout << "  Stage-2: σ_r²/N_pts whitening ON; AR(1) decorr on bias norm\n";
+  std::cout << "  NE+SW POI roll scale="
             << geom_e.poi_sector0_attitude_scale << " (tight lock)\n";
   std::cout << "  10Hz NE frames=" << rep_e10_fixed.calib.ne.body_frames
             << "  est. lag-1 ρ(bias‖)≈" << rho_ne10 << " (POI prior if low)\n";

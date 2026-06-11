@@ -1,5 +1,10 @@
 #pragma once
 
+#include <clic_calib/sensor_data/rtk_measurement.h>
+#include <clic_calib/spline/trajectory.h>
+
+#include <Eigen/Core>
+
 #include <vector>
 
 namespace clic_calib {
@@ -29,5 +34,12 @@ std::vector<double> ComputeTemporalDecorrelationScales(
 
 /** Uniform per-frame √( (1−ρ)/(1+ρ) ) from AR(1) effective sample count. */
 std::vector<double> UniformAr1DecorrelationScales(size_t count, double rho);
+
+/**
+ * Estimate AR(1) ρ from consecutive RTK antenna residuals ‖p_obs−p_pred‖.
+ */
+double EstimateRtkResidualAr1Rho(
+    const BodyTrajectory& traj, const std::vector<RTKMeasurement>& rtk,
+    const Eigen::Vector3d& L_B_to_A);
 
 }  // namespace clic_calib

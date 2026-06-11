@@ -1,6 +1,6 @@
 # Phase 3 — u_B aspect bias (b_const(u_B))
 
-**Status:** flight 戊 full-frame 10 Hz GLS rework @ seed **13025** (no stride/subsample).
+**Status:** flight 戊 @ seed **13025** — Stage-1 RTK Prais–Winsten PW + NE/SW POI roll lock (v3).
 
 ## 10 Hz regression — root cause (confirmed)
 
@@ -14,17 +14,19 @@
 
 1. **v2 field:** `centroid_cov = σ_r² / N_pts`; refine `use_centroid_cov_whitening = true` on 10 Hz path.
 2. **`TemporalDecorrelationConfig`:** AR(1) uniform scale `√((1−ρ)/(1+ρ))` on `body_temporal_sqrt_info_scales`; ρ from bias-norm lag-1 with **POI dwell floor ρ≥0.88** when `u_B` std ≤ 5°; applied in observed-mean + refine.
-3. **NE POI tighten:** `poi_sector0_attitude_scale = 0.35` (roll only on sector 0) → `u_B` std NE **1.3°** vs SW **3.6°**.
+3. **POI roll lock:** `poi_sector0_attitude_scale = 0.35` on **both** NE+SW sectors → `u_B` std **1.3°** each.
 4. **Removed:** `uniform_temporal_stride`, `match_streams_from`, aspect-quota subsample on 10 Hz calib.
 
-## Stage-1 RTK @ native 10 Hz
+## Stage-1 RTK @ native rate (Prais–Winsten v3)
+
+PW: `r̃₁=√(1−ρ²)·r₁/σ`, `r̃ₜ=(rₜ−ρ·rₜ₋₁)/(σ√(1−ρ²))`; ρ from axis-mean lag-1 on attitude-pass residuals. PW auto **off** when RTK spacing ≥ 0.2 s.
 
 | Rate | Antenna RMSE vs GT |
 |------|-------------------|
-| 0.5 Hz | **23.7 mm** |
-| 10 Hz (native) | **36.0 mm** (slightly worse; not fixed by per-sample Σ inflation) |
+| 0.5 Hz | **23.7 mm** (unchanged; independent RTK) |
+| 10 Hz (native) | **27.3 mm** (was 36.0 mm @ v2 uniform scale) |
 
-**Finding:** dense RTK is **not** subsampled; residual gap likely spline DOF vs 50 Hz attitude knot driver (`knot_dt≈0.05 s`) with extra RTK constraints — needs rate-aware RTK information (future), not decimation.
+**Finding:** PW decouples dense RTK drift; 10 Hz still ~3.6 mm above 0.5 Hz floor — residual spline/attitude knot mismatch, not Σ inflation.
 
 ## NE/SW asymmetry
 
@@ -41,19 +43,19 @@
 
 | tier | NE obs | SW obs | rel rot | center-reg |
 |------|--------|--------|---------|------------|
-| **0.5 Hz** | **12.2 mm** | **42.0 mm** | **0.12°** | 41 mm |
-| **10 Hz full** | **53.9 mm** | **117.6 mm**† | 0.31° | 152 mm |
+| **0.5 Hz** | **15.6 mm** | **43.2 mm** | **0.08°** | 57 mm |
+| **10 Hz full** | **148.7 mm**† | **199.9 mm**† | 0.51° | 324 mm |
 
-† SW 10 Hz: observed-mean **fallback** (iterative path diverges under dense correlated dwell).
+† Both 10 Hz: observed-mean **fallback** (bad Stage-1 trajectory + dense dwell correlation).
 
 ## (B) entry @ 10 Hz full-frame
 
 | Metric | Threshold | Status |
 |--------|-----------|--------|
-| Each obs `\|trans\|` | ≤ 35 mm | NE **54** ✗ SW **118** ✗ |
-| rel rot | ≤ 0.1° | **0.31°** ✗ |
+| Each obs `\|trans\|` | ≤ 35 mm | NE **149** ✗ SW **200** ✗ |
+| rel rot | ≤ 0.1° | **0.51°** ✗ |
 
-**Not entering (B).** 0.5 Hz NE already **12 mm**; 10 Hz still needs joint Cholesky whitening or Stage-1 RTK rate normalization.
+**Not entering (B).** Stage-1 PW improved 10 Hz RMSE 36→27 mm; Stage-2 10 Hz still diverges — needs joint body+RTK Cholesky or stronger dwell decorrelation.
 
 ## Serial POI (flight 戊)
 
