@@ -6,6 +6,7 @@
 #include <clic_calib/factor/rtk_position_factor.h>
 #include <clic_calib/factor/rtk_position_prais_winsten_factor.h>
 #include <clic_calib/factor/trajectory_smoothness_factor.h>
+#include <clic_calib/utils/ceres_gflags_guard.h>
 #include <clic_calib/utils/temporal_correlation.h>
 #include <clic_calib/spline/spline_segment.h>
 
@@ -305,6 +306,7 @@ Stage1TrajectoryResult Stage1TrajectoryFitter::Fit(
       }
     }
 
+    ResetGflagsForCeresSolve();
     ceres::Solver::Options opts_solver;
     opts_solver.max_num_iterations = max_iters;
     opts_solver.minimizer_progress_to_stdout = false;

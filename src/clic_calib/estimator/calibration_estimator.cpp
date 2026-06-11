@@ -12,6 +12,7 @@
 #include <clic_calib/factor/trajectory_smoothness_factor.h>
 #include <clic_calib/utils/camera_projection.h>
 #include <clic_calib/utils/lever_arm.h>
+#include <clic_calib/utils/ceres_gflags_guard.h>
 #include <clic_calib/utils/noise_model.h>
 
 #include <yaml-cpp/yaml.h>
@@ -350,6 +351,35 @@ struct CalibrationEstimator::Impl {
     so3_local_param = nullptr;
   }
 
+  void ResetSessionState() {
+    ClearProblem();
+    rtk.clear();
+    attitude_obs.clear();
+    lidar_obs.clear();
+    apriltag_obs.clear();
+    rtk_warm_start_done = false;
+    trajectory_rtk_seeded = false;
+    trajectory = std::make_shared<BodyTrajectory>(spline.knot_interval_s, 0.0);
+    for (auto& kv : lidar_cfg) {
+      ExtrinsicState state;
+      state.SetFromSE3(kv.second.initial_T_LW);
+      state.t_d = kv.second.initial_t_d_s;
+      state.prior = kv.second.initial_T_LW;
+      state.prior_sqrt_info =
+          PriorSqrtInfo(kv.second.prior_rot_std_deg, kv.second.prior_trans_std_m);
+      lidar_state[kv.first] = state;
+    }
+    for (auto& kv : camera_cfg) {
+      ExtrinsicState state;
+      state.SetFromSE3(kv.second.initial_T_CW);
+      state.t_d = kv.second.initial_t_d_s;
+      state.prior = kv.second.initial_T_CW;
+      state.prior_sqrt_info =
+          PriorSqrtInfo(kv.second.prior_rot_std_deg, kv.second.prior_trans_std_m);
+      camera_state[kv.first] = state;
+    }
+  }
+
   SplineSegmentMeta<SplineOrder> TrajectoryMeta() const {
     return SplineSegmentMeta<SplineOrder>(trajectory->minTimeNs(),
                                           trajectory->getDtNs(),
@@ -578,6 +608,7 @@ struct CalibrationEstimator::Impl {
   }
 
   ceres::Solver::Summary RunSolver(int max_iters) {
+    ResetGflagsForCeresSolve();
     ceres::Solver::Options opts;
     opts.max_num_iterations = max_iters;
     opts.minimizer_type = ceres::TRUST_REGION;
@@ -911,6 +942,8 @@ AttitudeStreamConfig CalibrationEstimator::attitude_stream_config() const {
 std::shared_ptr<Trajectory> CalibrationEstimator::get_trajectory() const {
   return impl_->trajectory;
 }
+
+void CalibrationEstimator::reset_session() { impl_->ResetSessionState(); }
 
 void CalibrationEstimator::build_problem_for_analysis() {
   if (impl_->rtk.empty()) {

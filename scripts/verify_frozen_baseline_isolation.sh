@@ -35,13 +35,15 @@ bd = Path(sys.argv[2])
 
 def run_suite(bin_name: str) -> str:
     p = tmp / f"{bin_name}_suite.log"
-    subprocess.run([str(bd / bin_name)], check=True, stdout=p.open("w"), stderr=subprocess.STDOUT)
+    subprocess.run([str(bd / bin_name)], check=True, cwd=bd,
+                   stdout=p.open("w"), stderr=subprocess.STDOUT)
     return p.read_text()
 
 def run_iso(bin_name: str, filt: str) -> str:
     p = tmp / f"{bin_name}_iso.log"
     subprocess.run([str(bd / bin_name), f"--gtest_filter={filt}"],
-                   check=True, stdout=p.open("w"), stderr=subprocess.STDOUT)
+                   check=True, cwd=bd,
+                   stdout=p.open("w"), stderr=subprocess.STDOUT)
     return p.read_text()
 
 def near(a: float, b: float, tol: float, label: str) -> None:
@@ -79,14 +81,38 @@ def block(name, fn):
         results.append((name, "FAIL", str(e)))
         fail = 1
 
+def obs_test_block(text: str, test_name: str) -> str:
+    # Fork wrapper emits parent [RUN] then child [RUN]; metrics live in last block.
+    pat = (
+        rf"\[ RUN      \] {re.escape(test_name)}.*?"
+        rf"(?=\[ RUN      \] |\Z)"
+    )
+    blocks = re.findall(pat, text, re.S)
+    if not blocks:
+        raise SystemExit(f"FAIL observability block not found: {test_name}")
+    return blocks[-1]
+
 def check_obs():
     s = run_suite("test_observability_synthetic")
-    i = run_iso("test_observability_synthetic",
-                "ObservabilitySynthetic.CoplanarAblationIsDegenerate")
-    lam_s = f1(s, r"multi_lambda_min=([0-9.eE+-]+)")
-    lam_i = f1(i, r"multi_lambda_min=([0-9.eE+-]+)")
-    near(lam_s, lam_i, 0.01, "multi_lambda_min")
-    near(lam_s, 1.074, 0.01, "λ_min vs frozen 1.074")
+    tests = [
+        ("ObservabilitySynthetic.CoplanarAblationIsDegenerate",
+         r"multi_lambda_min=([0-9.eE+-]+)"),
+        ("ObservabilitySynthetic.MultiLayerFlightIsWellObserved",
+         r"multi_lambda_min=([0-9.eE+-]+)"),
+        ("ObservabilitySynthetic.FimLinkAuditMulti",
+         r"fim_audit\b.*?\blambda_min=([0-9.eE+-]+)"),
+    ]
+    for test_name, pat in tests:
+        blk_s = obs_test_block(s, test_name)
+        i = run_iso("test_observability_synthetic", test_name)
+        lam_s = f1(blk_s, pat)
+        lam_i = f1(i, pat)
+        near(lam_s, lam_i, 0.01, f"{test_name} λ_min")
+    lam_c = f1(
+        obs_test_block(s, "ObservabilitySynthetic.CoplanarAblationIsDegenerate"),
+        r"multi_lambda_min=([0-9.eE+-]+)",
+    )
+    near(lam_c, 1.074, 0.01, "λ_min vs frozen 1.074")
 
 def check_two_stage():
     s = run_suite("test_two_stage_pipeline")

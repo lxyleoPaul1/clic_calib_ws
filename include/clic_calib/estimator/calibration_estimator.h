@@ -66,6 +66,9 @@ class CalibrationEstimator {
   double get_t_d_camera(int sensor_id) const;
   std::shared_ptr<Trajectory> get_trajectory() const;
 
+  /** @brief Drop measurements/problem so a new scenario can be loaded in-process. */
+  void reset_session();
+
   /** @brief Assemble full Ceres problem without running the solver. */
   void build_problem_for_analysis();
 

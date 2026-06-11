@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
+#include <cstring>
 
 #include <cmath>
 #include <filesystem>
@@ -18,7 +19,69 @@
 #include <string>
 #include <vector>
 
+#include <sys/wait.h>
+#include <unistd.h>
+
 namespace {
+
+bool ObservabilityInChildProcess() {
+  return std::getenv("CLIC_OBS_TEST_CHILD") != nullptr;
+}
+
+std::string SelfExecutablePath() {
+  char buf[4096];
+  const ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n <= 0) {
+    return {};
+  }
+  buf[n] = '\0';
+  return std::string(buf);
+}
+
+/** Parent runs child with single-test filter; child executes the test body. */
+bool RunObservabilityTestInChild(const char* gtest_filter) {
+  if (ObservabilityInChildProcess()) {
+    return false;
+  }
+  const std::string exe = SelfExecutablePath();
+  if (exe.empty()) {
+    ADD_FAILURE() << "readlink(/proc/self/exe) failed";
+    return true;
+  }
+  const pid_t pid = fork();
+  if (pid < 0) {
+    ADD_FAILURE() << "fork failed";
+    return true;
+  }
+  if (pid == 0) {
+    setenv("CLIC_OBS_TEST_CHILD", "1", 1);
+    std::string filter_arg = std::string("--gtest_filter=") + gtest_filter;
+    std::vector<std::string> arg_storage = {exe, filter_arg};
+    std::vector<char*> argv;
+    argv.reserve(arg_storage.size() + 1);
+    for (std::string& arg : arg_storage) {
+      argv.push_back(arg.data());
+    }
+    argv.push_back(nullptr);
+    execv(exe.c_str(), argv.data());
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    ADD_FAILURE() << "waitpid failed";
+    return true;
+  }
+  if (WIFSIGNALED(status)) {
+    ADD_FAILURE() << "child terminated by signal " << WTERMSIG(status);
+    return true;
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    ADD_FAILURE() << "child exit code "
+                  << (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    return true;
+  }
+  return true;
+}
 
 std::string ConfigDir() {
   const std::filesystem::path from_source =
@@ -220,9 +283,11 @@ double DominanceOnPitchOrZTranslation(
   return std::max(pitch, z_trans);
 }
 
-}  // namespace
-
 TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
+  if (RunObservabilityTestInChild(
+          "ObservabilitySynthetic.CoplanarAblationIsDegenerate")) {
+    return;
+  }
   const SyntheticScenario multi = MakeSyntheticScenario(
       MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
   const SyntheticScenario coplanar = MakeSyntheticScenario(
@@ -264,19 +329,28 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
 }
 
 TEST(ObservabilitySynthetic, MultiLayerFlightIsWellObserved) {
+  if (RunObservabilityTestInChild(
+          "ObservabilitySynthetic.MultiLayerFlightIsWellObserved")) {
+    return;
+  }
   const SyntheticScenario scenario = MakeSyntheticScenario(
       MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
   const AnalysisResult result = RunObservabilityAnalysis(scenario);
   const auto& report = result.report;
 
+  std::cout << "[lambda_audit] multi_lambda_min=" << report.lambda_min << "\n";
+
   EXPECT_EQ(report.information_matrix.rows(), 12);
   EXPECT_EQ(report.information_matrix.cols(), 12);
-  EXPECT_GT(report.lambda_min, 0.0);
+  EXPECT_GT(report.lambda_min, 0.003);
   EXPECT_GT(report.pdop_ext, 0.0);
   EXPECT_LT(report.condition_number, 1e8);
 }
 
 TEST(ObservabilitySynthetic, FimLinkAuditMulti) {
+  if (RunObservabilityTestInChild("ObservabilitySynthetic.FimLinkAuditMulti")) {
+    return;
+  }
   const SyntheticScenario multi = MakeSyntheticScenario(
       MakeMultiLayerTrajectory(), ScenarioOptions{true, true, 1.0});
   const AnalysisResult multi_result = RunObservabilityAnalysis(multi);
@@ -285,6 +359,9 @@ TEST(ObservabilitySynthetic, FimLinkAuditMulti) {
     link_tag = "unknown";
   }
   PrintFimAudit(link_tag, multi_result, multi);
+  EXPECT_GT(multi_result.report.lambda_min, 0.003);
 }
+
+}  // namespace
 
 int main(int argc, char** argv) { return ClicGTestRunAll(argc, argv); }

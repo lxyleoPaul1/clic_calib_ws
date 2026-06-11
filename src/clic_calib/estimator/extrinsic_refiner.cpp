@@ -1,6 +1,7 @@
 #include <clic_calib/estimator/extrinsic_refiner.h>
 
 #include <clic_calib/estimator/ceres_so3_scope.h>
+#include <clic_calib/utils/ceres_gflags_guard.h>
 #include <clic_calib/factor/fixed_traj_apriltag_factor.h>
 #include <clic_calib/factor/fixed_traj_body_centroid_factor.h>
 #include <clic_calib/factor/fixed_traj_body_centroid_joint_lever_factor.h>
@@ -226,6 +227,7 @@ Eigen::Vector3d ExtrinsicRefiner::OptimizeJointBodyLeverAtFixedExtrinsic(
   scope.problem->SetParameterBlockConstant(lidar_state.q.coeffs().data());
   scope.problem->SetParameterBlockConstant(lidar_state.t.data());
 
+  ResetGflagsForCeresSolve();
   ceres::Solver::Options opts;
   opts.max_num_iterations = cfg.max_iterations;
   opts.minimizer_progress_to_stdout = false;
@@ -283,6 +285,7 @@ ExtrinsicRefinerResult ExtrinsicRefiner::Refine(
     scope.problem->SetParameterUpperBound(&out.camera.t_d, 0, cfg.t_d_max_abs_s);
   }
 
+  ResetGflagsForCeresSolve();
   ceres::Solver::Options opts;
   opts.max_num_iterations = cfg.max_iterations;
   opts.minimizer_progress_to_stdout = false;
