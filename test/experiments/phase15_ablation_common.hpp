@@ -335,7 +335,8 @@ struct IterativeObservedMeanResult {
 inline IterativeObservedMeanResult RunBodyPathIterativeObservedMean(
     const Phase15Scenario& ps, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& base_cfg,
-    const std::vector<BodyClusterObservation>& body_obs, int num_iters) {
+    const std::vector<BodyClusterObservation>& body_obs, int num_iters,
+    const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
   IterativeObservedMeanResult out;
   if (num_iters < 1) {
     return out;
@@ -344,6 +345,9 @@ inline IterativeObservedMeanResult RunBodyPathIterativeObservedMean(
   cfg.init.lidar_target_mode = LidarTargetMode::kBodyCluster;
   cfg.refine.lidar_target_mode = LidarTargetMode::kBodyCluster;
   cfg.refine.body_lever_arm_mode = BodyLeverArmMode::kNominalYaml;
+  if (temporal_sqrt_info_scales != nullptr) {
+    cfg.refine.body_temporal_sqrt_info_scales = *temporal_sqrt_info_scales;
+  }
 
   Stage1TrajectoryResult s1;
   GeometricInitReport geo;
@@ -358,7 +362,8 @@ inline IterativeObservedMeanResult RunBodyPathIterativeObservedMean(
   double best_cost = std::numeric_limits<double>::infinity();
   for (int k = 0; k < num_iters; ++k) {
     levers_refine.L_B_to_body_centroid = EstimateObservedMeanBodyLever(
-        *s1.trajectory, geo.init.T_LW, ps.sc.gt.t_d_L_s, body_obs);
+        *s1.trajectory, geo.init.T_LW, ps.sc.gt.t_d_L_s, body_obs,
+        temporal_sqrt_info_scales);
     out.L_B_per_iter.push_back(levers_refine.L_B_to_body_centroid);
     try {
       geo = ExtrinsicInitializer::FromGeometric(
@@ -404,11 +409,17 @@ inline GatedObservedMeanCalibResult CalibrateBodyGatedObservedMean(
     const std::vector<BodyClusterObservation>& body_obs,
     int observed_mean_iters = 3,
     const ObservedMeanAspectGate& gate = {},
-    double u_B_azimuth_std_deg = -1.0) {
+    double u_B_azimuth_std_deg = -1.0,
+    const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
   GatedObservedMeanCalibResult out;
   out.aspect = ComputeAttitudeSpreadAtObservations(
       ps.sc.gt_traj, ps.sc.gt.t_d_L_s, body_obs);
-  const auto cent = RunBodyPathOutcome(ps, levers, noise, base_cfg,
+  TwoStagePipelineConfig cent_cfg = base_cfg;
+  if (temporal_sqrt_info_scales != nullptr) {
+    cent_cfg.refine.body_temporal_sqrt_info_scales =
+        *temporal_sqrt_info_scales;
+  }
+  const auto cent = RunBodyPathOutcome(ps, levers, noise, cent_cfg,
                                        BodyLeverArmMode::kNominalYaml, body_obs);
   out.centroid_only = cent.metrics;
   out.T_LW_centroid = cent.T_LW_est;
@@ -420,7 +431,8 @@ inline GatedObservedMeanCalibResult CalibrateBodyGatedObservedMean(
     return out;
   }
   const auto iter = RunBodyPathIterativeObservedMean(
-      ps, levers, noise, base_cfg, body_obs, observed_mean_iters);
+      ps, levers, noise, base_cfg, body_obs, observed_mean_iters,
+      temporal_sqrt_info_scales);
   const bool trans_ok =
       iter.final_metrics.stage2_ok &&
       iter.final_metrics.trans_mm <= cent.metrics.trans_mm + 1e-3;

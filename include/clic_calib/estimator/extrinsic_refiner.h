@@ -28,6 +28,11 @@ struct ExtrinsicRefinerConfig {
   int max_iterations = 500;
   /** When false, use legacy σ(r,N) whitening (ignore v2 centroid_cov). */
   bool use_centroid_cov_whitening = true;
+  /**
+   * Per body-cluster frame: left-multiply sqrt_information by scale[i].
+   * Empty ⇒ uniform weighting (independent samples).
+   */
+  std::vector<double> body_temporal_sqrt_info_scales;
 };
 
 struct ExtrinsicRefinerResult {

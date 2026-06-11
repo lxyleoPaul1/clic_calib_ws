@@ -1,111 +1,62 @@
 # Phase 3 — u_B aspect bias (b_const(u_B))
 
-**Status:** flight 丁 diagnosis + flight 戊 POI @ seed **13025**; 10 Hz regression **fixed**.
+**Status:** flight 戊 full-frame 10 Hz GLS rework @ seed **13025** (no stride/subsample).
 
-## Hypothesis
-
-Range-only models **(a) p_B(r)** and **(c) face-window** are excluded on flight 丁.
-**Range down-weight (b)** also fails (weak |r|, 5× `range_coeff` ineffective).
-
-The remaining variable is **look-direction azimuth in body** `u_B`: unit vector from
-body toward the active LiDAR post, expressed in body frame B. View-dependent centroid
-bias `bias_B` should correlate with `u_B` azimuth (near-sinusoidal), not range alone.
-
-## Tidal lock (NearFieldHighAspect / Phase 1.5)
-
-Single-sensor `PoseWbFromGeometry` with `high_attitude_variation`:
-
-- Orbit azimuth: `atan2(y, x)` from standoff arc around sensor at world origin.
-- Body yaw: `atan2(−y, −x)` — nose toward the sensor (velocity/POI style).
-
-These are **linearly coupled** (`r ≈ 1`): orbit sweep and body yaw are **tidally
-locked**. `u_B` azimuth is **not** constant on Phase 1.5, but bias varies smoothly
-with aspect → `varying_RMS ≈ 22 mm`, observed-mean `p_B` works (18.5 mm).
-
-## Flight 丁 (decoupled attitude)
-
-Translation: dual-sector wide orbit (35–50 m). Attitude: Phase-1.5
-`NearFieldHighAspect` on sector-local time — **not** tied to dual-orbit `−p_WB`.
-
-- Tidal-lock audit on 丁 sector-0: **low** orbit_az ↔ body_yaw correlation.
-- `u_B` azimuth **sweeps** with decoupled attitude → large `bias_B` vs `u_B` structure.
-- `varying_RMS` on 丁 ≫ Phase 1.5 (~22 mm reference).
-
-## Flight 戊 (POI per sector)
-
-`kPerSectorTidalLockPOI`: in each LiDAR sector, arc orbit + **nose locked toward
-that sector's post** (DJI POI). Pitch/roll sweep retained.
-
-- `u_B` azimuth std ≈ **3.6°** per sector (tidal lock to post).
-- Gate via POI branch (`u_B` stable + pitch_std≥14°).
-
-## 10 Hz regression — diagnostic (seed 13025)
+## 10 Hz regression — root cause (confirmed)
 
 | Check | Result |
 |-------|--------|
-| Per-scan `N_pts` 0.5 Hz vs 10 Hz | **45.2 vs 45.1** mean (frame-rate invariant ✓) |
-| 10 Hz, cov OFF (legacy σ), all 300 fr | NE **78** / SW **140** mm — does **not** return to 0.5 Hz |
-| Conclusion | **centroid_cov overweight** (partial); **temporal correlation** (primary) |
+| `N_pts` 0.5 vs 10 Hz | **45.2 vs 45.1** mean (frame-rate invariant ✓) |
+| All-frame uniform σ, 10 Hz | NE/SW **worse** than 0.5 Hz → **temporal correlation** |
+| Stride + reuse 0.5 Hz streams | **Rejected** — discards √N and Ruby-rate information |
 
-Correlated dwell at 10 Hz overweighted repeated `u_B`/bias directions when means
-were treated as independent.
+## Fix (v2): full-frame correlated GLS
 
-## Fix (calibration prepare policy)
+1. **v2 field:** `centroid_cov = σ_r² / N_pts`; refine `use_centroid_cov_whitening = true` on 10 Hz path.
+2. **`TemporalDecorrelationConfig`:** AR(1) uniform scale `√((1−ρ)/(1+ρ))` on `body_temporal_sqrt_info_scales`; ρ from bias-norm lag-1 with **POI dwell floor ρ≥0.88** when `u_B` std ≤ 5°; applied in observed-mean + refine.
+3. **NE POI tighten:** `poi_sector0_attitude_scale = 0.35` (roll only on sector 0) → `u_B` std NE **1.3°** vs SW **3.6°**.
+4. **Removed:** `uniform_temporal_stride`, `match_streams_from`, aspect-quota subsample on 10 Hz calib.
 
-1. **v2 field:** `centroid_cov = σ_r² / N_pts` (per scan; `N` independent of frame rate).
-2. **Refine whitening:** `use_centroid_cov_whitening = false` → legacy `σ(r,N)` (restores 乙 ≈ **165 mm**).
-3. **High-rate calib:** `BodyObsPreparePolicy` on 10 Hz sim:
-   - Rebuild body cluster at **0.5 s** (`stride = lidar_dt_10 / lidar_dt_05`) with same RNG seed → identical frames to native 0.5 Hz.
-   - Copy RTK / attitude / tag streams from **0.5 Hz reference** scenario (dense 10 Hz RTK otherwise shifts Stage-1 spline).
-   - Optional aspect-quota cap (60 fr/sector); POI lock uses orbit-azimuth bins when `u_B` is tight.
+## Stage-1 RTK @ native 10 Hz
 
-After fix, **戊@10 Hz = 戊@0.5 Hz** (bit-identical @ seed 13025).
+| Rate | Antenna RMSE vs GT |
+|------|-------------------|
+| 0.5 Hz | **23.7 mm** |
+| 10 Hz (native) | **36.0 mm** (slightly worse; not fixed by per-sample Σ inflation) |
 
-## Serial POI mission (flight 戊)
+**Finding:** dense RTK is **not** subsampled; residual gap likely spline DOF vs 50 Hz attitude knot driver (`knot_dt≈0.05 s`) with extra RTK constraints — needs rate-aware RTK information (future), not decimation.
 
-Real flight = **two time-multiplexed POI orbits** on shared RTK trajectory:
+## NE/SW asymmetry
 
-- **t ∈ [0, 45) s:** nose locked to **NE** roadside LiDAR (POI).
-- **t ∈ [45, 90) s:** nose locked to **SW** roadside LiDAR (POI).
+| Quantity | NE | SW |
+|----------|----|----|
+| mean range | 32.48 m | 32.48 m |
+| varying_RMS | 25.4 mm | 21.7 mm |
+| `lever_h` (‖R_LW R_WB b_const‖_h) | 236 mm | 227 mm |
+| simple `u_B×b_const` projection | 0.13 mm | 0.31 mm |
 
-One POI lock at a time (DJI POI mode); diagonal dual-LiDAR geometry requires serial
-sectors, not simultaneous POI to both posts.
+**1.51× obs gap (legacy geometry) is *not* explained by lever_h alone** (ratio ≈1.04). Residual asymmetry: sector box-face visibility + coupled spline near t=45 s when NE roll is tightened.
 
-## Measured @ seed 13025
-
-### 丁 aspect scatter (GT)
-
-| sensor | u_B az std | varying_RMS | r(u_B,bias_x) | r(u_B,bias_y) |
-|--------|------------|-------------|---------------|---------------|
-| NE | 14.1° | 110 mm | +0.53 | −0.68 |
-| SW | 17.6° | 124 mm | −0.64 | +0.69 |
-| P1.5 ref | — | **22 mm** | — | — |
-
-Tidal lock: P1.5 `yaw−orbit` std **0°**; 丁 sector **110°** (decoupled).
-
-### 戊 POI (post-fix)
+## 戊 POI results @ seed 13025 (post-rework)
 
 | tier | NE obs | SW obs | rel rot | center-reg |
 |------|--------|--------|---------|------------|
-| 0.5 Hz | 55.1 mm | **36.5 mm** | **0.09°** | 42 mm |
-| 10 Hz (fixed) | **55.1 mm** | **36.5 mm** | **0.09°** | 42 mm |
+| **0.5 Hz** | **12.2 mm** | **42.0 mm** | **0.12°** | 41 mm |
+| **10 Hz full** | **53.9 mm** | **117.6 mm**† | 0.31° | 152 mm |
 
-**NE/SW asymmetry (1.51×):** post heights both **5.0 m**; mean range **32.48 m** both
-(Δ < 1 mm). Residual gap from **sector POI geometry** — differing box-face visibility
-and `b_const` lever per diagonal sector (not legacy 4.5/5.5 m post skew).
+† SW 10 Hz: observed-mean **fallback** (iterative path diverges under dense correlated dwell).
 
-## (B) entry criterion (updated)
-
-Deprecated: `rel |trans| ≤ 35 mm` (dominated by `Δθ × baseline`, e.g. 甲 0.06°×70.7 m).
-
-**New @ flight 戊 10 Hz:**
+## (B) entry @ 10 Hz full-frame
 
 | Metric | Threshold | Status |
 |--------|-----------|--------|
-| Each sensor obs `\|trans\|` | ≤ 35 mm | NE **55** ✗ SW **37** ✗ |
-| Relative rotation | ≤ 0.1° | **0.09°** ✓ |
-| Center registration (report) | — | 42 mm |
+| Each obs `\|trans\|` | ≤ 35 mm | NE **54** ✗ SW **118** ✗ |
+| rel rot | ≤ 0.1° | **0.31°** ✗ |
 
-10 Hz regression **resolved**; (B) blocked on absolute obs (especially NE), not frame rate.
+**Not entering (B).** 0.5 Hz NE already **12 mm**; 10 Hz still needs joint Cholesky whitening or Stage-1 RTK rate normalization.
 
-See `multi_lidar_board_free_blueprint.md`.
+## Serial POI (flight 戊)
+
+- **t ∈ [0, 45) s:** POI → **NE** LiDAR  
+- **t ∈ [45, 90) s:** POI → **SW** LiDAR  
+- One POI lock at a time; full RTK throughout.

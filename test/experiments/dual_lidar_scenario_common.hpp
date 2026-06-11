@@ -9,7 +9,9 @@
 #include "diagnostic/attitude_scenario_common.hpp"
 #include "diagnostic/closed_form_init_common.hpp"
 
+#include <clic_calib/estimator/stage1_trajectory_fitter.h>
 #include <clic_calib/utils/camera_projection.h>
+#include <clic_calib/utils/temporal_correlation.h>
 #include "experiments/body_sampling_common.hpp"
 #include "experiments/dual_lidar_diagonal_geometry.hpp"
 #include "experiments/phase15_ablation_common.hpp"
@@ -384,58 +386,127 @@ inline std::vector<BodyClusterObservation> SubsampleBodyObservationsAspectQuota(
 }
 
 struct BodyObsPreparePolicy {
-  /** e.g. 5 when decimating 10 Hz (0.1 s) → 0.5 Hz (0.5 s) equivalent spacing. */
-  int uniform_temporal_stride = 0;
-  int aspect_quota_target = 0;
-  int aspect_quota_bins = 12;
-  /**
-   * When set, copy RTK/attitude/tag streams from reference (rate-matched calib on
-   * high-rate sim without correlated dwell overweight).
-   */
-  const DualLidarPhase3Scenario* match_streams_from = nullptr;
+  TemporalDecorrelationConfig temporal_decorrelation;
 };
+
+inline std::vector<double> CollectObservationTimes(
+    const std::vector<BodyClusterObservation>& observations) {
+  std::vector<double> times;
+  times.reserve(observations.size());
+  for (const auto& obs : observations) {
+    times.push_back(obs.t_sensor_);
+  }
+  return times;
+}
+
+inline std::vector<double> CollectBiasNormSeries(
+    const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
+    const Eigen::Vector3d& L_B_nominal,
+    const std::vector<BodyClusterObservation>& observations) {
+  std::vector<double> series;
+  series.reserve(observations.size());
+  for (const auto& obs : observations) {
+    const double t_world = obs.t_sensor_ - t_d_L_s;
+    const SE3d T_WB = traj.pose_wb(t_world);
+    const SE3d T_WL = T_LW.inverse();
+    const Eigen::Vector3d L_obs =
+        T_WB.so3().inverse() * (T_WL * obs.centroid_L_ - T_WB.translation());
+    series.push_back((L_obs - L_B_nominal).norm());
+  }
+  return series;
+}
+
+inline std::vector<double> ComputeBodyTemporalDecorrelationScales(
+    const DualLidarPhase3Scenario& ds, const std::string& sensor_key,
+    const LeverArmConfig& levers,
+    const std::vector<BodyClusterObservation>& observations,
+    const TemporalDecorrelationConfig& cfg) {
+  if (!cfg.enabled || observations.empty()) {
+    return {};
+  }
+  const std::vector<double> bias_norm =
+      CollectBiasNormSeries(ds.sc.gt_traj, ds.gt_lidars.T_LW.at(sensor_key),
+                            ds.sc.gt.t_d_L_s, levers.L_B_to_body_centroid,
+                            observations);
+  double rho = cfg.ar1_rho;
+  if (rho < 0.0 && bias_norm.size() >= 3) {
+    rho = EstimateLag1Autocorrelation(bias_norm);
+  }
+  const double u_B_std_deg = ComputeUBAzimuthStdDeg(
+      ds.sc.gt_traj, ds.sc.gt.t_d_L_s,
+      DiagonalLidarPostW(ds.geom.dual_preset, sensor_key), observations);
+  if (u_B_std_deg > 0.1 && u_B_std_deg <= 5.0) {
+    rho = std::max(rho, 0.88);
+  }
+  if (observations.size() >= 120) {
+    rho = std::max(rho, 0.90);
+  }
+  if (cfg.mode == TemporalDecorrelationConfig::Mode::kExponentialKernel) {
+    const std::vector<double> times = CollectObservationTimes(observations);
+    const std::vector<double> u_az;
+    return ComputeTemporalDecorrelationScales(times, u_az, cfg);
+  }
+  return UniformAr1DecorrelationScales(observations.size(), rho);
+}
+
+/** Stage-1 antenna RMSE vs GT [mm] (native RTK rate). */
+inline double Stage1AntennaRmseMm(
+    const DualLidarPhase3Scenario& ds, const LeverArmConfig& levers,
+    const TwoStagePipelineConfig& cfg) {
+  Phase15Scenario ps;
+  ps.sc = ds.sc;
+  ps.geom = ds.geom;
+  Stage1TrajectoryConfig s1_cfg;
+  s1_cfg.knot_interval_s = cfg.stage1.knot_interval_s;
+  s1_cfg.alpha_p = cfg.stage1.alpha_p;
+  s1_cfg.alpha_R = cfg.stage1.alpha_R;
+  s1_cfg.attitude_stride = cfg.stage1.attitude_stride;
+  s1_cfg.trim_to_observation_support = cfg.stage1.trim_to_observation_support;
+  const Stage1TrajectoryResult s1 = Stage1TrajectoryFitter::Fit(
+      Stage1TrajectoryInput::FromRtkAttitudeStreams(ps.sc.rtk,
+                                                    ps.sc.attitude_obs),
+      levers, s1_cfg);
+  if (!s1.summary.IsSolutionUsable() || !s1.trajectory) {
+    return -1.0;
+  }
+  double sq = 0.0;
+  int count = 0;
+  for (const auto& m : ps.sc.rtk) {
+    if (m.fix_status_ != RTKMeasurement::FixStatus::FIXED) {
+      continue;
+    }
+    const Eigen::Vector3d p_est =
+        s1.trajectory->antenna_position_w(m.t_world_, levers.L_B_to_A);
+    const Eigen::Vector3d p_gt =
+        ps.sc.gt_traj.antenna_position_w(m.t_world_, levers.L_B_to_A);
+    sq += (p_est - p_gt).squaredNorm();
+    ++count;
+  }
+  if (count == 0) {
+    return -1.0;
+  }
+  return std::sqrt(sq / static_cast<double>(count)) * 1e3;
+}
 
 inline Phase15Scenario ToPhase15SensorSlicePrepared(
     const DualLidarPhase3Scenario& ds, const std::string& sensor_key,
-    const LeverArmConfig& levers, const NoiseModel& noise,
     const BodyObsPreparePolicy& policy = {}) {
-  Phase15Scenario ps = ToPhase15SensorSlice(ds, sensor_key);
-  if (policy.uniform_temporal_stride > 1) {
-    const int stride = policy.uniform_temporal_stride;
-    const double eff_dt = ds.geom.lidar_dt_s * static_cast<double>(stride);
-    const int sensor_id = sensor_key == "lidar_NE" ? 0 : 1;
-    ps.body_cluster = BuildBodyClusterForDiagonalSensor(
-        ds.sc.gt_traj, ds.gt_lidars.T_LW.at(sensor_key), ds.sc.gt.t_d_L_s,
-        levers, noise, ds.geom, sensor_key, sensor_id,
-        DiagonalBodyObsSeed(ds.sim_seed, sensor_key), true, eff_dt);
-  }
-  if (policy.match_streams_from != nullptr) {
-    ps.sc.rtk = policy.match_streams_from->sc.rtk;
-    ps.sc.attitude_obs = policy.match_streams_from->sc.attitude_obs;
-    ps.sc.tag_obs = policy.match_streams_from->sc.tag_obs;
-  }
-  if (policy.aspect_quota_target > 0 &&
-      static_cast<int>(ps.body_cluster.size()) > policy.aspect_quota_target) {
-    const Eigen::Vector3d post =
-        DiagonalLidarPostW(ds.geom.dual_preset, sensor_key);
-    ps.body_cluster = SubsampleBodyObservationsAspectQuota(
-        ds.sc.gt_traj, ds.sc.gt.t_d_L_s, post, ps.body_cluster,
-        policy.aspect_quota_target, policy.aspect_quota_bins);
-  }
-  return ps;
+  (void)policy;
+  return ToPhase15SensorSlice(ds, sensor_key);
 }
 
 inline DualSensorCalibResult CalibrateDualSensorViaPhase15(
     const Phase15Scenario& ps, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& cfg,
     const std::string& sensor_key, int observed_mean_iters = 3,
-    double u_B_azimuth_std_deg = -1.0) {
+    double u_B_azimuth_std_deg = -1.0,
+    const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
   DualSensorCalibResult out;
   out.sensor_key = sensor_key;
   out.body_frames = static_cast<int>(ps.body_cluster.size());
   out.calib = CalibrateBodyGatedObservedMean(
       ps, levers, noise, cfg, ps.body_cluster, observed_mean_iters, {},
-      u_B_azimuth_std_deg);
+      u_B_azimuth_std_deg, temporal_sqrt_info_scales);
   return out;
 }
 
@@ -446,21 +517,35 @@ inline DualFlightCalibReport CalibrateDualDiagonalFlight(
     const BodyObsPreparePolicy& obs_policy = {}) {
   DualFlightCalibReport rep;
   const Phase15Scenario ps_ne =
-      ToPhase15SensorSlicePrepared(ds, "lidar_NE", levers, noise, obs_policy);
+      ToPhase15SensorSlicePrepared(ds, "lidar_NE", obs_policy);
   const Phase15Scenario ps_sw =
-      ToPhase15SensorSlicePrepared(ds, "lidar_SW", levers, noise, obs_policy);
+      ToPhase15SensorSlicePrepared(ds, "lidar_SW", obs_policy);
   const Eigen::Vector3d post_ne =
       DiagonalLidarPostW(ds.geom.dual_preset, "lidar_NE");
   const Eigen::Vector3d post_sw =
       DiagonalLidarPostW(ds.geom.dual_preset, "lidar_SW");
+  const std::vector<double> scales_ne =
+      ComputeBodyTemporalDecorrelationScales(
+          ds, "lidar_NE", levers, ps_ne.body_cluster,
+          obs_policy.temporal_decorrelation);
+  const std::vector<double> scales_sw =
+      ComputeBodyTemporalDecorrelationScales(
+          ds, "lidar_SW", levers, ps_sw.body_cluster,
+          obs_policy.temporal_decorrelation);
+  const std::vector<double>* scales_ne_ptr =
+      scales_ne.empty() ? nullptr : &scales_ne;
+  const std::vector<double>* scales_sw_ptr =
+      scales_sw.empty() ? nullptr : &scales_sw;
   const double u_B_std_ne = ComputeUBAzimuthStdDeg(
       ds.sc.gt_traj, ds.sc.gt.t_d_L_s, post_ne, ps_ne.body_cluster);
   const double u_B_std_sw = ComputeUBAzimuthStdDeg(
       ds.sc.gt_traj, ds.sc.gt.t_d_L_s, post_sw, ps_sw.body_cluster);
   rep.ne = CalibrateDualSensorViaPhase15(ps_ne, levers, noise, cfg, "lidar_NE",
-                                         observed_mean_iters, u_B_std_ne);
+                                         observed_mean_iters, u_B_std_ne,
+                                         scales_ne_ptr);
   rep.sw = CalibrateDualSensorViaPhase15(ps_sw, levers, noise, cfg, "lidar_SW",
-                                         observed_mean_iters, u_B_std_sw);
+                                         observed_mean_iters, u_B_std_sw,
+                                         scales_sw_ptr);
   rep.rel_centroid = RelativeExtrinsicError(
       rep.ne.calib.T_LW_centroid, rep.sw.calib.T_LW_centroid,
       ds.gt_lidars.T_LW.at("lidar_NE"), ds.gt_lidars.T_LW.at("lidar_SW"));

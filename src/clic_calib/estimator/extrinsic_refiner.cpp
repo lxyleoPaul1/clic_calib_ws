@@ -30,7 +30,8 @@ void AddStage2FixedFactors(
     ExtrinsicOptimizeState* camera_state, Eigen::Vector3d* L_B_joint,
     ceres::LossFunction* lidar_loss, ceres::LossFunction* camera_loss,
     Stage2FactorCounts* counts = nullptr,
-    const std::vector<Eigen::Vector3d>* L_B_per_obs = nullptr) {
+    const std::vector<Eigen::Vector3d>* L_B_per_obs = nullptr,
+    const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
   const double inv_sigma_r = 1.0 / noise.lidar_ranging_sigma_m;
   const double inv_sigma_pix = 1.0 / noise.camera_pixel_sigma;
 
@@ -44,12 +45,18 @@ void AddStage2FixedFactors(
     for (size_t obs_i = 0; obs_i < body_cluster.size(); ++obs_i) {
       const auto& obs = body_cluster[obs_i];
       const double t_bar = obs.t_sensor_;
-      const Eigen::Matrix3d sqrt_info =
+      Eigen::Matrix3d sqrt_info =
           cfg.use_centroid_cov_whitening
               ? noise.BodyCentroidSqrtInformationFromObservation(obs)
               : noise.BodyCentroidSqrtInformation(
                     obs.mean_range_m_,
                     static_cast<int>(obs.point_count_));
+      if (temporal_sqrt_info_scales && obs_i < temporal_sqrt_info_scales->size()) {
+        sqrt_info *= (*temporal_sqrt_info_scales)[obs_i];
+      } else if (!cfg.body_temporal_sqrt_info_scales.empty() &&
+                 obs_i < cfg.body_temporal_sqrt_info_scales.size()) {
+        sqrt_info *= cfg.body_temporal_sqrt_info_scales[obs_i];
+      }
       const Eigen::Vector3d L_B =
           (L_B_per_obs && obs_i < L_B_per_obs->size())
               ? (*L_B_per_obs)[obs_i]

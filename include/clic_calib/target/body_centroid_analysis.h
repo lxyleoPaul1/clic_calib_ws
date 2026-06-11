@@ -52,6 +52,23 @@ Eigen::Vector3d ComputeBConstFromCentroidBackproject(
  */
 Eigen::Vector3d EstimateObservedMeanBodyLever(
     const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
+    const std::vector<BodyClusterObservation>& observations,
+    const std::vector<double>* temporal_weights = nullptr);
+
+/** u_B jitter × b_const lever projection onto horizontal T_LW translation. */
+struct AspectLeverTranslationProjection {
+  Eigen::Vector3d b_const_B = Eigen::Vector3d::Zero();
+  double u_B_azimuth_std_deg = 0.0;
+  double bias_varying_rms_mm = 0.0;
+  double lever_horizontal_mm = 0.0;
+  /** lever_h × u_B_std[rad] × (varying_RMS / 1000) — first-order jitter budget. */
+  double projected_jitter_trans_mm = 0.0;
+};
+
+AspectLeverTranslationProjection ComputeAspectLeverTranslationProjection(
+    const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
+    const Eigen::Vector3d& L_B_nominal,
+    const Eigen::Vector3d& lidar_post_W,
     const std::vector<BodyClusterObservation>& observations);
 
 /** R_WB attitude spread at body-cluster observation times. */

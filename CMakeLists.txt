@@ -63,10 +63,14 @@ target_link_libraries(clic_calib_spline_lib ${catkin_LIBRARIES})
 add_library(clic_calib_data_lib
   src/clic_calib/utils/lever_arm.cpp
   src/clic_calib/utils/noise_model.cpp
+  src/clic_calib/utils/temporal_correlation.cpp
   src/clic_calib/io/rtk_reader.cpp
   src/clic_calib/io/attitude_reader.cpp
   src/clic_calib/io/observation_archive.cpp
   src/clic_calib/io/calibration_result.cpp
+  src/clic_calib/io/sensor_rig_config.cpp
+  src/clic_calib/config/body_model_config.cpp
+  src/clic_calib/config/body_cluster_detection_config.cpp
 )
 target_link_libraries(clic_calib_data_lib
   ${catkin_LIBRARIES}
@@ -76,6 +80,7 @@ target_link_libraries(clic_calib_data_lib
 add_library(clic_calib_target_lib
   src/clic_calib/target/sphere_extractor.cpp
   src/clic_calib/target/apriltag_detector_wrapper.cpp
+  src/clic_calib/target/body_cluster_extractor.cpp
 )
 target_link_libraries(clic_calib_target_lib
   ${PCL_LIBRARIES}
@@ -212,4 +217,25 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_apriltag_wrapper test/test_apriltag_wrapper.cpp)
   target_link_libraries(test_apriltag_wrapper clic_calib_target_lib ${OpenCV_LIBS})
+
+  catkin_add_gtest(test_clicob_v2_roundtrip test/test_clicob_v2_roundtrip.cpp)
+  target_link_libraries(test_clicob_v2_roundtrip clic_calib_data_lib
+    ${YAML_CPP_LIBRARIES})
+
+  catkin_add_gtest(test_clicob_v1_backward_compat
+    test/test_clicob_v1_backward_compat.cpp)
+  target_link_libraries(test_clicob_v1_backward_compat clic_calib_data_lib)
+
+  catkin_add_gtest(test_body_centroid_factor_jacobian
+    test/test_body_centroid_factor_jacobian.cpp)
+  target_link_libraries(test_body_centroid_factor_jacobian ${FACTOR_TEST_DEPS})
+
+  catkin_add_gtest(test_fixed_traj_body_centroid_factor_jacobian
+    test/test_fixed_traj_body_centroid_factor_jacobian.cpp)
+  target_link_libraries(test_fixed_traj_body_centroid_factor_jacobian
+    clic_calib_spline_lib ${CERES_LIBRARIES})
+
+  catkin_add_gtest(test_body_cluster_extractor test/test_body_cluster_extractor.cpp)
+  target_link_libraries(test_body_cluster_extractor clic_calib_target_lib
+    clic_calib_data_lib ${YAML_CPP_LIBRARIES})
 endif()

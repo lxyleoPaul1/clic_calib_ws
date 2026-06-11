@@ -1,4 +1,5 @@
 #include <clic_calib/target/body_centroid_analysis.h>
+#include <clic_calib/utils/temporal_correlation.h>
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
 
@@ -46,7 +47,7 @@ clic_calib::TwoStagePipelineConfig MakeBaseConfig(
   cfg.refine.camera_huber_delta_px = 2.0;
   cfg.refine.camera_K = cfg.init.camera_K;
   cfg.refine.max_iterations = 500;
-  // v2 centroid_cov field kept on observations; refine uses legacy σ(r,N) whitening.
+  // Legacy σ for gate flights (乙); 10 Hz 戊 uses centroid_cov override below.
   cfg.refine.use_centroid_cov_whitening = false;
   return cfg;
 }
@@ -276,8 +277,10 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
             << "  N mean/min/max=" << audit_ne_10.mean << "/" << audit_ne_10.min
             << "/" << audit_ne_10.max << "\n";
 
+  clic_calib::TwoStagePipelineConfig cfg_e05 = base_cfg;
+  cfg_e05.refine.use_centroid_cov_whitening = true;
   const auto rep_e = clic_calib::experiments::CalibrateDualDiagonalFlightEntry(
-      ds_e, levers, noise, base_cfg, kObservedMeanIters);
+      ds_e, levers, noise, cfg_e05, kObservedMeanIters);
 
   clic_calib::TwoStagePipelineConfig cfg_uniform = base_cfg;
   cfg_uniform.refine.use_centroid_cov_whitening = false;
@@ -310,29 +313,53 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
             << "; temporal correlation: "
             << (correlation_hurts ? "YES" : "NO") << "\n";
 
-  const int high_rate_stride = static_cast<int>(std::lround(
-      geom_e.lidar_dt_s / geom_e10.lidar_dt_s));
+  const double stage1_rmse_05 =
+      clic_calib::experiments::Stage1AntennaRmseMm(ds_e, levers, base_cfg);
+  const double stage1_rmse_10 =
+      clic_calib::experiments::Stage1AntennaRmseMm(ds_e10, levers, base_cfg);
+  std::cout << "\n=== Stage-1 RTK trajectory audit (native rate) ===\n";
+  std::cout << std::fixed << std::setprecision(2);
+  std::cout << "  antenna RMSE vs GT  0.5Hz=" << stage1_rmse_05
+            << " mm  10Hz=" << stage1_rmse_10 << " mm"
+            << (stage1_rmse_10 <= stage1_rmse_05 + 0.5 ? " (OK)" : " (CHECK)")
+            << "\n";
+
   clic_calib::experiments::BodyObsPreparePolicy high_rate_policy;
-  high_rate_policy.uniform_temporal_stride = std::max(1, high_rate_stride);
-  high_rate_policy.aspect_quota_target = 60;
-  high_rate_policy.aspect_quota_bins = 12;
-  high_rate_policy.match_streams_from = &ds_e;
+  high_rate_policy.temporal_decorrelation.enabled = true;
+  high_rate_policy.temporal_decorrelation.ar1_rho = -1.0;
+  high_rate_policy.temporal_decorrelation.kernel_tau_s = 0.25;
+  high_rate_policy.temporal_decorrelation.mode =
+      clic_calib::TemporalDecorrelationConfig::Mode::kAr1Innovation;
+
+  clic_calib::TwoStagePipelineConfig cfg_e10 = base_cfg;
+  cfg_e10.refine.use_centroid_cov_whitening = true;
 
   const auto aspect_e_ne = AspectOnFlight(ds_e, "lidar_NE", levers);
   const auto aspect_e_sw = AspectOnFlight(ds_e, "lidar_SW", levers);
 
   const auto aspect_e10_ne = AspectOnFlight(ds_e10, "lidar_NE", levers);
   const auto aspect_e10_sw = AspectOnFlight(ds_e10, "lidar_SW", levers);
+
+  const auto bias_ne10 =
+      clic_calib::experiments::CollectBiasNormSeries(
+          ds_e10.sc.gt_traj, ds_e10.gt_lidars.T_LW.at("lidar_NE"),
+          ds_e10.sc.gt.t_d_L_s, levers.L_B_to_body_centroid,
+          ds_e10.body_by_sensor.at("lidar_NE"));
+  const double rho_ne10 =
+      bias_ne10.empty() ? 0.0
+                        : clic_calib::EstimateLag1Autocorrelation(bias_ne10);
+
   const auto rep_e10_fixed =
       clic_calib::experiments::CalibrateDualDiagonalFlightEntry(
-          ds_e10, levers, noise, base_cfg, kObservedMeanIters,
+          ds_e10, levers, noise, cfg_e10, kObservedMeanIters,
           high_rate_policy);
 
-  std::cout << "\n=== 戊 fix applied ===\n";
-  std::cout << "  cov field: Var=σ_r²/N_pts; refine: legacy σ whitening\n";
-  std::cout << "  10Hz: body @0.5s (stride " << high_rate_policy.uniform_temporal_stride
-            << "); RTK/tag from 0.5Hz ref; aspect quota cap "
-            << high_rate_policy.aspect_quota_target << " fr/sector\n";
+  std::cout << "\n=== 戊 fix applied (full-frame 10 Hz) ===\n";
+  std::cout << "  cov: σ_r²/N_pts whitening ON; AR(1) decorr on bias norm\n";
+  std::cout << "  NE sector POI attitude scale="
+            << geom_e.poi_sector0_attitude_scale << " (tight lock)\n";
+  std::cout << "  10Hz NE frames=" << rep_e10_fixed.calib.ne.body_frames
+            << "  est. lag-1 ρ(bias‖)≈" << rho_ne10 << " (POI prior if low)\n";
 
   std::cout << "\n=== Flight 戊 POI @ 0.5 Hz ===\n";
   PrintFlightEntryTable("戊@0.5Hz", rep_e, aspect_e_ne.u_B_azimuth_std_deg,
@@ -360,13 +387,38 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
             << " m  Δ=" << (range_ne - range_sw) * 1e3 << " mm\n";
   const auto vary_e_ne = AspectOnFlight(ds_e, "lidar_NE", levers);
   const auto vary_e_sw = AspectOnFlight(ds_e, "lidar_SW", levers);
+  const Eigen::Vector3d post_ne =
+      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
+                                                  "lidar_NE");
+  const Eigen::Vector3d post_sw =
+      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
+                                                  "lidar_SW");
+  const auto proj_ne = clic_calib::ComputeAspectLeverTranslationProjection(
+      ds_e.sc.gt_traj, ds_e.gt_lidars.T_LW.at("lidar_NE"), ds_e.sc.gt.t_d_L_s,
+      levers.L_B_to_body_centroid, post_ne,
+      ds_e.body_by_sensor.at("lidar_NE"));
+  const auto proj_sw = clic_calib::ComputeAspectLeverTranslationProjection(
+      ds_e.sc.gt_traj, ds_e.gt_lidars.T_LW.at("lidar_SW"), ds_e.sc.gt.t_d_L_s,
+      levers.L_B_to_body_centroid, post_sw,
+      ds_e.body_by_sensor.at("lidar_SW"));
   std::cout << "  varying_RMS NE=" << vary_e_ne.bias_varying_rms_mm
             << " mm  SW=" << vary_e_sw.bias_varying_rms_mm << " mm\n";
-  std::cout << "  obs NE/SW="
-            << (rep_e.calib.ne.calib.observed_mean.trans_mm /
-                std::max(rep_e.calib.sw.calib.observed_mean.trans_mm, 1e-3))
-            << "× — symmetric range/post; gap from sector POI geometry "
-               "(box-face visibility + b_const lever; not 4.5/5.5 m legacy)\n";
+  std::cout << "  u_B std NE=" << proj_ne.u_B_azimuth_std_deg << "°  SW="
+            << proj_sw.u_B_azimuth_std_deg << "°\n";
+  std::cout << "  lever_h NE=" << proj_ne.lever_horizontal_mm
+            << " mm  SW=" << proj_sw.lever_horizontal_mm << " mm\n";
+  std::cout << "  projected jitter NE=" << proj_ne.projected_jitter_trans_mm
+            << " mm  SW=" << proj_sw.projected_jitter_trans_mm << " mm\n";
+  const double proj_ratio =
+      proj_ne.projected_jitter_trans_mm /
+      std::max(proj_sw.projected_jitter_trans_mm, 1e-6);
+  const double obs_ratio =
+      rep_e.calib.ne.calib.observed_mean.trans_mm /
+      std::max(rep_e.calib.sw.calib.observed_mean.trans_mm, 1e-3);
+  std::cout << "  projected/obs asymmetry: " << proj_ratio << "× / "
+            << obs_ratio << "×"
+            << (std::abs(proj_ratio - obs_ratio) < 0.35 ? " (match)" : "")
+            << "\n";
 
   std::cout << "\n=== Serial POI mission (flight 戊) ===\n";
   std::cout << "  t∈[0,45)s: lock NE LiDAR POI; t∈[45,90)s: lock SW LiDAR POI\n";

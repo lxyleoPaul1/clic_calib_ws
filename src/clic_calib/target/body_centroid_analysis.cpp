@@ -88,22 +88,66 @@ BodyCentroidBiasDecomposition DecomposeBodyCentroidBias(
 
 Eigen::Vector3d EstimateObservedMeanBodyLever(
     const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
-    const std::vector<BodyClusterObservation>& observations) {
+    const std::vector<BodyClusterObservation>& observations,
+    const std::vector<double>* temporal_weights) {
   if (observations.empty()) {
     return Eigen::Vector3d::Zero();
   }
   const SE3d T_WL = T_LW.inverse();
   Eigen::Vector3d sum = Eigen::Vector3d::Zero();
-  int count = 0;
-  for (const auto& obs : observations) {
+  double weight_sum = 0.0;
+  for (size_t i = 0; i < observations.size(); ++i) {
+    const auto& obs = observations[i];
+    const double w =
+        (temporal_weights && i < temporal_weights->size())
+            ? (*temporal_weights)[i] * (*temporal_weights)[i]
+            : 1.0;
     const double t_world = obs.t_sensor_ - t_d_L_s;
     const SE3d T_WB = traj.pose_wb(t_world);
     const Eigen::Vector3d L_obs =
         T_WB.so3().inverse() * (T_WL * obs.centroid_L_ - T_WB.translation());
-    sum += L_obs;
-    ++count;
+    sum += w * L_obs;
+    weight_sum += w;
   }
-  return sum / static_cast<double>(count);
+  if (weight_sum < 1e-12) {
+    return Eigen::Vector3d::Zero();
+  }
+  return sum / weight_sum;
+}
+
+AspectLeverTranslationProjection ComputeAspectLeverTranslationProjection(
+    const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
+    const Eigen::Vector3d& L_B_nominal,
+    const Eigen::Vector3d& lidar_post_W,
+    const std::vector<BodyClusterObservation>& observations) {
+  AspectLeverTranslationProjection out;
+  if (observations.empty()) {
+    return out;
+  }
+  out.b_const_B = ComputeBConstFromCentroidBackproject(
+      traj, T_LW, t_d_L_s, L_B_nominal, observations);
+  const auto aspect = BuildAspectBiasScatterReport(
+      traj, T_LW, t_d_L_s, L_B_nominal, lidar_post_W, observations);
+  out.u_B_azimuth_std_deg = aspect.u_B_azimuth_std_deg;
+  out.bias_varying_rms_mm = aspect.bias_varying_rms_mm;
+
+  const Eigen::Matrix3d R_LW = T_LW.so3().matrix();
+  double h_sq = 0.0;
+  for (const auto& obs : observations) {
+    const double t_world = obs.t_sensor_ - t_d_L_s;
+    const Eigen::Matrix3d R_WB = traj.rotation_wb(t_world).matrix();
+    const Eigen::Vector3d v_W = R_LW * R_WB * out.b_const_B;
+    const Eigen::Vector3d v_h(v_W.x(), v_W.y(), 0.0);
+    h_sq += v_h.squaredNorm();
+  }
+  out.lever_horizontal_mm =
+      std::sqrt(h_sq / static_cast<double>(observations.size())) * 1e3;
+
+  const double u_std_rad = out.u_B_azimuth_std_deg * M_PI / 180.0;
+  out.projected_jitter_trans_mm =
+      out.lever_horizontal_mm * u_std_rad *
+      (out.bias_varying_rms_mm / 1000.0);
+  return out;
 }
 
 namespace {
