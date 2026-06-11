@@ -165,14 +165,11 @@ inline BodyClusterObservation MakeBodyClusterObservation(
   obs.mean_range_m_ = mean_range;
   obs.centroid_L_ = sample.empirical_centroid_L;
   if (obs.point_count_ > 0) {
-    const double sigma_frame = noise.BodyCentroidSigmaM(
-        mean_range, static_cast<int>(obs.point_count_));
-    const double sigma_centroid =
-        sigma_frame /
-        std::sqrt(static_cast<double>(obs.point_count_));
+    // v2: Var(c̄) = σ_r²/N_pts (σ_r = ranging σ; N_pts per scan, frame-rate invariant).
+    const double sigma_r = noise.lidar_ranging_sigma_m;
+    const double n_pts = static_cast<double>(obs.point_count_);
     obs.has_centroid_cov_ = true;
-    obs.centroid_cov_ =
-        Eigen::Matrix3d::Identity() * (sigma_centroid * sigma_centroid);
+    obs.centroid_cov_ = Eigen::Matrix3d::Identity() * (sigma_r * sigma_r / n_pts);
   }
   if (add_residual_noise && rng) {
     const double sigma =

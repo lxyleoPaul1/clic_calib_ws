@@ -45,7 +45,11 @@ void AddStage2FixedFactors(
       const auto& obs = body_cluster[obs_i];
       const double t_bar = obs.t_sensor_;
       const Eigen::Matrix3d sqrt_info =
-          noise.BodyCentroidSqrtInformationFromObservation(obs);
+          cfg.use_centroid_cov_whitening
+              ? noise.BodyCentroidSqrtInformationFromObservation(obs)
+              : noise.BodyCentroidSqrtInformation(
+                    obs.mean_range_m_,
+                    static_cast<int>(obs.point_count_));
       const Eigen::Vector3d L_B =
           (L_B_per_obs && obs_i < L_B_per_obs->size())
               ? (*L_B_per_obs)[obs_i]

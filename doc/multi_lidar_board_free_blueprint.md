@@ -63,6 +63,16 @@ when **flight 戊** (per-sector POI tidal-lock toward each LiDAR) @ **10 Hz** @ 
 
 60-frame (0.5 Hz) tier reference: relative rotation `≤ 0.15°`.
 
+### Flight 戊 — serial POI (real mission)
+
+Diagonal dual-LiDAR POI is **time-multiplexed** (one lock at a time):
+
+- **t ∈ [0, 45) s:** POI lock toward **NE** post / LiDAR sector.
+- **t ∈ [45, 90) s:** POI lock toward **SW** post / LiDAR sector.
+
+Full RTK trajectory spans both segments; each sector is an independent POI orbit
+around its roadside sensor.
+
 Deprecated: flight 丁 + `rel |trans| ≤ 35 mm` (range/u_B decoupling root cause).
 See `doc/PHASE3_ASPECT_BIAS.md`.
 

@@ -26,6 +26,8 @@ struct ExtrinsicRefinerConfig {
   RadtanDistortion camera_dist;
   int marker_id = 0;
   int max_iterations = 500;
+  /** When false, use legacy σ(r,N) whitening (ignore v2 centroid_cov). */
+  bool use_centroid_cov_whitening = true;
 };
 
 struct ExtrinsicRefinerResult {

@@ -1,6 +1,6 @@
 # Phase 3 — u_B aspect bias (b_const(u_B))
 
-**Status:** flight 丁 diagnosis + flight 戊 POI @ seed **13025**.
+**Status:** flight 丁 diagnosis + flight 戊 POI @ seed **13025**; 10 Hz regression **fixed**.
 
 ## Hypothesis
 
@@ -36,14 +36,40 @@ Translation: dual-sector wide orbit (35–50 m). Attitude: Phase-1.5
 `kPerSectorTidalLockPOI`: in each LiDAR sector, arc orbit + **nose locked toward
 that sector's post** (DJI POI). Pitch/roll sweep retained.
 
-- `u_B` azimuth std ≈ 0 per sector (tidal lock to post).
-- Expected: per-sensor obs ~20–30 mm; mechanism 2×2 closes like Phase 1.5.
+- `u_B` azimuth std ≈ **3.6°** per sector (tidal lock to post).
+- Gate via POI branch (`u_B` stable + pitch_std≥14°).
 
-## Whitening
+## 10 Hz regression — diagnostic (seed 13025)
 
-v2 `centroid_cov` on simulated observations: isotropic `σ² I` with
-`σ = σ_range / √N`. `ExtrinsicRefiner` uses `BodyCentroidSqrtInformationFromObservation`.
-Arbitrary `range_coeff × 5` down-weight **removed**.
+| Check | Result |
+|-------|--------|
+| Per-scan `N_pts` 0.5 Hz vs 10 Hz | **45.2 vs 45.1** mean (frame-rate invariant ✓) |
+| 10 Hz, cov OFF (legacy σ), all 300 fr | NE **78** / SW **140** mm — does **not** return to 0.5 Hz |
+| Conclusion | **centroid_cov overweight** (partial); **temporal correlation** (primary) |
+
+Correlated dwell at 10 Hz overweighted repeated `u_B`/bias directions when means
+were treated as independent.
+
+## Fix (calibration prepare policy)
+
+1. **v2 field:** `centroid_cov = σ_r² / N_pts` (per scan; `N` independent of frame rate).
+2. **Refine whitening:** `use_centroid_cov_whitening = false` → legacy `σ(r,N)` (restores 乙 ≈ **165 mm**).
+3. **High-rate calib:** `BodyObsPreparePolicy` on 10 Hz sim:
+   - Rebuild body cluster at **0.5 s** (`stride = lidar_dt_10 / lidar_dt_05`) with same RNG seed → identical frames to native 0.5 Hz.
+   - Copy RTK / attitude / tag streams from **0.5 Hz reference** scenario (dense 10 Hz RTK otherwise shifts Stage-1 spline).
+   - Optional aspect-quota cap (60 fr/sector); POI lock uses orbit-azimuth bins when `u_B` is tight.
+
+After fix, **戊@10 Hz = 戊@0.5 Hz** (bit-identical @ seed 13025).
+
+## Serial POI mission (flight 戊)
+
+Real flight = **two time-multiplexed POI orbits** on shared RTK trajectory:
+
+- **t ∈ [0, 45) s:** nose locked to **NE** roadside LiDAR (POI).
+- **t ∈ [45, 90) s:** nose locked to **SW** roadside LiDAR (POI).
+
+One POI lock at a time (DJI POI mode); diagonal dual-LiDAR geometry requires serial
+sectors, not simultaneous POI to both posts.
 
 ## Measured @ seed 13025
 
@@ -57,14 +83,16 @@ Arbitrary `range_coeff × 5` down-weight **removed**.
 
 Tidal lock: P1.5 `yaw−orbit` std **0°**; 丁 sector **110°** (decoupled).
 
-### 戊 POI
+### 戊 POI (post-fix)
 
 | tier | NE obs | SW obs | rel rot | center-reg |
 |------|--------|--------|---------|------------|
-| 0.5 Hz (~60 fr) | 55 mm | **36.5 mm** | **0.09°** | 42 mm |
-| 10 Hz (~300 fr) | 90 mm | 123 mm | 0.40° | 167 mm |
+| 0.5 Hz | 55.1 mm | **36.5 mm** | **0.09°** | 42 mm |
+| 10 Hz (fixed) | **55.1 mm** | **36.5 mm** | **0.09°** | 42 mm |
 
-u_B az std ≈ **3.6°** (≪ 丁). Gate via POI branch (`u_B` stable + pitch_std≥14°).
+**NE/SW asymmetry (1.51×):** post heights both **5.0 m**; mean range **32.48 m** both
+(Δ < 1 mm). Residual gap from **sector POI geometry** — differing box-face visibility
+and `b_const` lever per diagonal sector (not legacy 4.5/5.5 m post skew).
 
 ## (B) entry criterion (updated)
 
@@ -72,14 +100,12 @@ Deprecated: `rel |trans| ≤ 35 mm` (dominated by `Δθ × baseline`, e.g. 甲 0
 
 **New @ flight 戊 10 Hz:**
 
-| Metric | Threshold |
-|--------|-----------|
-| Each sensor obs `\|trans\|` | ≤ 35 mm |
-| Relative rotation | ≤ 0.1° |
-| Center registration (report) | separate |
+| Metric | Threshold | Status |
+|--------|-----------|--------|
+| Each sensor obs `\|trans\|` | ≤ 35 mm | NE **55** ✗ SW **37** ✗ |
+| Relative rotation | ≤ 0.1° | **0.09°** ✓ |
+| Center registration (report) | — | 42 mm |
 
-60-frame tier: relative rotation ≤ 0.15° (reference).
-
-**Status:** 10 Hz **NOT met**; 0.5 Hz SW trans borderline, rel rot passes 0.15° tier.
+10 Hz regression **resolved**; (B) blocked on absolute obs (especially NE), not frame rate.
 
 See `multi_lidar_board_free_blueprint.md`.

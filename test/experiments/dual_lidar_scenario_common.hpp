@@ -14,6 +14,8 @@
 #include "experiments/dual_lidar_diagonal_geometry.hpp"
 #include "experiments/phase15_ablation_common.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <string>
 #include <vector>
@@ -33,6 +35,7 @@ struct DualLidarPhase3Scenario {
   DualDiagonalFlightGeometry geom;
   DualLidarGtExtrinsics gt_lidars;
   std::map<std::string, std::vector<BodyClusterObservation>> body_by_sensor;
+  uint32_t sim_seed = 0;
 };
 
 /** GT-template AprilTag stream (same schema as BuildNoisyScenarioFromGeometry). */
@@ -80,13 +83,16 @@ inline std::vector<BodyClusterObservation> BuildBodyClusterForDiagonalSensor(
     const BodyTrajectory& traj, const SE3d& T_LW, double t_d_L_s,
     const LeverArmConfig& levers, const NoiseModel& noise,
     const DualDiagonalFlightGeometry& geom, const std::string& sensor_key,
-    int sensor_id, uint32_t seed_obs, bool add_residual_noise = true) {
+    int sensor_id, uint32_t seed_obs, bool add_residual_noise = true,
+    double sample_dt_s = -1.0) {
   const Eigen::Vector3d post_W = DiagonalLidarPostW(geom.dual_preset, sensor_key);
   const double t_end = 2.0 * geom.sector_duration_s;
+  const double dt =
+      sample_dt_s > 0.0 ? sample_dt_s : geom.lidar_dt_s;
 
   std::vector<BodyClusterObservation> out;
   std::mt19937 rng(seed_obs);
-  for (double t = geom.lidar_dt_s; t <= t_end - 1e-9; t += geom.lidar_dt_s) {
+  for (double t = dt; t <= t_end - 1e-9; t += dt) {
     if (!IsTimeInSensorSector(t, sensor_key, geom)) {
       continue;
     }
@@ -115,6 +121,7 @@ inline DualLidarPhase3Scenario BuildDualDiagonalScenario(
       LeverArmConfig::from_yaml(ConfigDirFromExperiments() + "/lever_arms.yaml");
 
   DualLidarPhase3Scenario out;
+  out.sim_seed = seed;
   out.geom = geom;
   out.sc.gt_traj = BuildGtTrajectoryDualDiagonal(geom);
   out.sc.gt.t_d_L_s = 0.030;
@@ -226,6 +233,198 @@ inline double AngleDegBetweenVectors(const Eigen::Vector3d& a,
   return std::acos(c) * 180.0 / M_PI;
 }
 
+struct BodyClusterPointCountAudit {
+  double mean = 0.0;
+  double min = 0.0;
+  double max = 0.0;
+  int num_frames = 0;
+};
+
+inline double MeanObservationRangeM(
+    const std::vector<BodyClusterObservation>& observations) {
+  if (observations.empty()) {
+    return 0.0;
+  }
+  double sum = 0.0;
+  for (const auto& obs : observations) {
+    sum += obs.mean_range_m_;
+  }
+  return sum / static_cast<double>(observations.size());
+}
+
+inline BodyClusterPointCountAudit AuditBodyClusterPointCounts(
+    const std::vector<BodyClusterObservation>& observations) {
+  BodyClusterPointCountAudit out;
+  out.num_frames = static_cast<int>(observations.size());
+  if (observations.empty()) {
+    return out;
+  }
+  double sum = 0.0;
+  out.min = 1e9;
+  out.max = 0.0;
+  for (const auto& obs : observations) {
+    const double n = static_cast<double>(obs.point_count_);
+    sum += n;
+    out.min = std::min(out.min, n);
+    out.max = std::max(out.max, n);
+  }
+  out.mean = sum / static_cast<double>(observations.size());
+  return out;
+}
+
+template <typename T>
+inline void DecimateVectorInPlace(std::vector<T>* v, int stride) {
+  if (!v || stride <= 1 || v->empty()) {
+    return;
+  }
+  std::vector<T> out;
+  out.reserve(v->size() / static_cast<size_t>(stride) + 1);
+  for (size_t i = 0; i < v->size(); i += static_cast<size_t>(stride)) {
+    out.push_back((*v)[i]);
+  }
+  *v = std::move(out);
+}
+
+inline uint32_t DiagonalBodyObsSeed(uint32_t sim_seed,
+                                    const std::string& sensor_key) {
+  return sim_seed + (sensor_key == "lidar_NE" ? 17u : 29u);
+}
+
+/**
+ * Aspect-quota subsample: uniform in look-aspect, not time.
+ * POI lock (u_B tight): bin by orbit azimuth around @p lidar_post_W instead.
+ */
+inline std::vector<BodyClusterObservation> SubsampleBodyObservationsAspectQuota(
+    const BodyTrajectory& traj, double t_d_L_s,
+    const Eigen::Vector3d& lidar_post_W,
+    const std::vector<BodyClusterObservation>& observations, int target_count,
+    int n_bins = 12) {
+  if (target_count <= 0 ||
+      static_cast<int>(observations.size()) <= target_count) {
+    return observations;
+  }
+  struct Entry {
+    size_t idx = 0;
+    double aspect_az = 0.0;
+  };
+  std::vector<Entry> entries;
+  entries.reserve(observations.size());
+  double u_B_lin_std = 0.0;
+  {
+    double mean = 0.0;
+    std::vector<double> u_az;
+    u_az.reserve(observations.size());
+    for (size_t i = 0; i < observations.size(); ++i) {
+      const double t_world = observations[i].t_sensor_ - t_d_L_s;
+      const SE3d T_WB = traj.pose_wb(t_world);
+      const Eigen::Vector3d u_B = LidarDirectionInBody(
+          T_WB, T_WB.translation(), lidar_post_W);
+      const double a = std::atan2(u_B.y(), u_B.x());
+      u_az.push_back(a);
+      mean += a;
+    }
+    mean /= static_cast<double>(u_az.size());
+    double sq = 0.0;
+    for (double a : u_az) {
+      const double d = a - mean;
+      sq += d * d;
+    }
+    u_B_lin_std = std::sqrt(sq / static_cast<double>(u_az.size()));
+  }
+  const bool poi_locked = u_B_lin_std < (5.0 * M_PI / 180.0);
+  for (size_t i = 0; i < observations.size(); ++i) {
+    const double t_world = observations[i].t_sensor_ - t_d_L_s;
+    const SE3d T_WB = traj.pose_wb(t_world);
+    double az = 0.0;
+    if (poi_locked) {
+      const Eigen::Vector3d d = T_WB.translation() - lidar_post_W;
+      az = std::atan2(d.y(), d.x());
+    } else {
+      const Eigen::Vector3d u_B = LidarDirectionInBody(
+          T_WB, T_WB.translation(), lidar_post_W);
+      az = std::atan2(u_B.y(), u_B.x());
+    }
+    entries.push_back({i, az});
+  }
+  const int bins = std::max(1, n_bins);
+  const double two_pi = 2.0 * M_PI;
+  std::vector<std::vector<size_t>> buckets(static_cast<size_t>(bins));
+  for (const auto& e : entries) {
+    double ang = e.aspect_az;
+    if (ang < 0.0) {
+      ang += two_pi;
+    }
+    const int b = std::min(
+        bins - 1, static_cast<int>(ang / two_pi * static_cast<double>(bins)));
+    buckets[static_cast<size_t>(b)].push_back(e.idx);
+  }
+  const int quota = std::max(1, target_count / bins);
+  std::vector<BodyClusterObservation> out;
+  out.reserve(static_cast<size_t>(target_count));
+  for (const auto& bucket : buckets) {
+    if (bucket.empty()) {
+      continue;
+    }
+    const int take = std::min(quota, static_cast<int>(bucket.size()));
+    for (int k = 0; k < take; ++k) {
+      const size_t pick =
+          bucket[static_cast<size_t>(k) * bucket.size() /
+                 static_cast<size_t>(take)];
+      out.push_back(observations[pick]);
+    }
+  }
+  if (static_cast<int>(out.size()) > target_count) {
+    out.resize(static_cast<size_t>(target_count));
+  }
+  std::sort(out.begin(), out.end(),
+            [](const BodyClusterObservation& a, const BodyClusterObservation& b) {
+              return a.t_sensor_ < b.t_sensor_;
+            });
+  return out;
+}
+
+struct BodyObsPreparePolicy {
+  /** e.g. 5 when decimating 10 Hz (0.1 s) → 0.5 Hz (0.5 s) equivalent spacing. */
+  int uniform_temporal_stride = 0;
+  int aspect_quota_target = 0;
+  int aspect_quota_bins = 12;
+  /**
+   * When set, copy RTK/attitude/tag streams from reference (rate-matched calib on
+   * high-rate sim without correlated dwell overweight).
+   */
+  const DualLidarPhase3Scenario* match_streams_from = nullptr;
+};
+
+inline Phase15Scenario ToPhase15SensorSlicePrepared(
+    const DualLidarPhase3Scenario& ds, const std::string& sensor_key,
+    const LeverArmConfig& levers, const NoiseModel& noise,
+    const BodyObsPreparePolicy& policy = {}) {
+  Phase15Scenario ps = ToPhase15SensorSlice(ds, sensor_key);
+  if (policy.uniform_temporal_stride > 1) {
+    const int stride = policy.uniform_temporal_stride;
+    const double eff_dt = ds.geom.lidar_dt_s * static_cast<double>(stride);
+    const int sensor_id = sensor_key == "lidar_NE" ? 0 : 1;
+    ps.body_cluster = BuildBodyClusterForDiagonalSensor(
+        ds.sc.gt_traj, ds.gt_lidars.T_LW.at(sensor_key), ds.sc.gt.t_d_L_s,
+        levers, noise, ds.geom, sensor_key, sensor_id,
+        DiagonalBodyObsSeed(ds.sim_seed, sensor_key), true, eff_dt);
+  }
+  if (policy.match_streams_from != nullptr) {
+    ps.sc.rtk = policy.match_streams_from->sc.rtk;
+    ps.sc.attitude_obs = policy.match_streams_from->sc.attitude_obs;
+    ps.sc.tag_obs = policy.match_streams_from->sc.tag_obs;
+  }
+  if (policy.aspect_quota_target > 0 &&
+      static_cast<int>(ps.body_cluster.size()) > policy.aspect_quota_target) {
+    const Eigen::Vector3d post =
+        DiagonalLidarPostW(ds.geom.dual_preset, sensor_key);
+    ps.body_cluster = SubsampleBodyObservationsAspectQuota(
+        ds.sc.gt_traj, ds.sc.gt.t_d_L_s, post, ps.body_cluster,
+        policy.aspect_quota_target, policy.aspect_quota_bins);
+  }
+  return ps;
+}
+
 inline DualSensorCalibResult CalibrateDualSensorViaPhase15(
     const Phase15Scenario& ps, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& cfg,
@@ -243,10 +442,13 @@ inline DualSensorCalibResult CalibrateDualSensorViaPhase15(
 inline DualFlightCalibReport CalibrateDualDiagonalFlight(
     const DualLidarPhase3Scenario& ds, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& cfg,
-    int observed_mean_iters = 3) {
+    int observed_mean_iters = 3,
+    const BodyObsPreparePolicy& obs_policy = {}) {
   DualFlightCalibReport rep;
-  const Phase15Scenario ps_ne = ToPhase15SensorSlice(ds, "lidar_NE");
-  const Phase15Scenario ps_sw = ToPhase15SensorSlice(ds, "lidar_SW");
+  const Phase15Scenario ps_ne =
+      ToPhase15SensorSlicePrepared(ds, "lidar_NE", levers, noise, obs_policy);
+  const Phase15Scenario ps_sw =
+      ToPhase15SensorSlicePrepared(ds, "lidar_SW", levers, noise, obs_policy);
   const Eigen::Vector3d post_ne =
       DiagonalLidarPostW(ds.geom.dual_preset, "lidar_NE");
   const Eigen::Vector3d post_sw =
@@ -296,10 +498,11 @@ struct DualFlightEntryMetrics {
 inline DualFlightEntryMetrics CalibrateDualDiagonalFlightEntry(
     const DualLidarPhase3Scenario& ds, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& cfg,
-    int observed_mean_iters = 3) {
+    int observed_mean_iters = 3,
+    const BodyObsPreparePolicy& obs_policy = {}) {
   DualFlightEntryMetrics out;
   out.calib = CalibrateDualDiagonalFlight(ds, levers, noise, cfg,
-                                          observed_mean_iters);
+                                          observed_mean_iters, obs_policy);
   const Eigen::Vector3d p_C = ds.geom.dual_preset.look_target_W;
   out.center_reg_cent_mm = CenterRegistrationErrorMm(
       out.calib.ne.calib.T_LW_centroid, out.calib.sw.calib.T_LW_centroid,
