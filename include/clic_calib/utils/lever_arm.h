@@ -17,6 +17,8 @@ namespace clic_calib {
 struct LeverArmConfig {
   Eigen::Vector3d L_B_to_A = Eigen::Vector3d::Zero();  ///< RTK antenna in B
   Eigen::Vector3d L_B_to_G = Eigen::Vector3d::Zero();  ///< sphere center in B
+  Eigen::Vector3d L_B_to_body_centroid =
+      Eigen::Vector3d::Zero();  ///< board-free body centroid in B
   std::map<int, Eigen::Vector3d> L_G_to_M;           ///< tag_id → offset G→M_j
   std::string body_convention = "FRD";               ///< "FRD" or "FLU"
 
@@ -35,6 +37,12 @@ inline Eigen::Vector3d antenna_position_world(const SE3d& T_WB,
 inline Eigen::Vector3d sphere_center_world(const SE3d& T_WB,
                                          const Eigen::Vector3d& L_B_to_G) {
   return T_WB * L_B_to_G;
+}
+
+/** @brief Board-free: p_body^W = T_WB * L_{B→body_centroid}. */
+inline Eigen::Vector3d body_centroid_world(
+    const SE3d& T_WB, const Eigen::Vector3d& L_B_to_body_centroid) {
+  return T_WB * L_B_to_body_centroid;
 }
 
 /** @brief §4.1: p_{M_j}^W = p_G^W + R_WB * L_{G→M_j}. */

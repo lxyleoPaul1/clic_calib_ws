@@ -5,6 +5,7 @@ body_convention: "FRD"
 
 L_B_to_A: [0.12, 0.05, -0.58]   # RTK antenna phase center in B
 L_B_to_G: [0.00, 0.00, -0.55]    # reflective sphere center in B
+body_centroid: [0.00, 0.00, -0.12]  # board-free UAV geometric centroid in B
 
 L_G_to_M:
   0: [0.10, 0.00, 0.00]

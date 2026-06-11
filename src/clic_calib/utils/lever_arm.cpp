@@ -54,6 +54,12 @@ LeverArmConfig LeverArmConfig::from_yaml(const std::string& path) {
     out.L_B_to_G = ReadVec3(node["lever_B_to_G"]);
   }
 
+  if (node["body_centroid"]) {
+    out.L_B_to_body_centroid = ReadVec3(node["body_centroid"]);
+  } else if (node["L_B_to_body_centroid"]) {
+    out.L_B_to_body_centroid = ReadVec3(node["L_B_to_body_centroid"]);
+  }
+
   if (node["L_G_to_M"]) {
     LoadLeverMap(node["L_G_to_M"], &out.L_G_to_M);
   } else if (node["lever_G_to_M"]) {
