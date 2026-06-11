@@ -80,6 +80,54 @@ void PrintSensorCalib(const char* tag,
   PrintAspect(tag, r.calib.aspect, u_B_az_std_deg);
 }
 
+void PrintObservedMeanAudit(const char* tag,
+                            const clic_calib::experiments::ObservedMeanPathAudit& a) {
+  std::cout << std::fixed << std::setprecision(2);
+  std::cout << "  [" << tag << "] gate=" << (a.gate_on ? "ON" : "OFF")
+            << "  applied=" << (a.applied ? "YES" : "NO")
+            << "  trans_ok=" << (a.trans_ok ? "Y" : "N")
+            << "  cost_ok=" << (a.cost_ok ? "Y" : "N") << "\n";
+  std::cout << "    yaw_cv=" << std::setprecision(3) << a.aspect.yaw_circular_variance
+            << " pitch_std=" << a.aspect.pitch_std_deg << " deg"
+            << "  cent/obs trans=" << std::setprecision(2) << a.cent_trans_mm
+            << "/" << a.obs_trans_mm << " mm"
+            << "  cost=" << a.cent_cost << "/" << a.obs_cost << "\n";
+  std::cout << "    p_B nominal [mm]: "
+            << (a.p_B_nominal * 1e3).transpose() << "\n";
+  std::cout << "    p_B stage1  [mm]: "
+            << (a.p_B_after_stage1 * 1e3).transpose()
+            << "  Δ=" << (a.p_B_after_stage1 - a.p_B_nominal).norm() * 1e3
+            << " mm\n";
+  if (a.gate_on) {
+    std::cout << "    p_B final   [mm]: "
+              << (a.p_B_final_iter * 1e3).transpose()
+              << "  Δ=" << (a.p_B_final_iter - a.p_B_nominal).norm() * 1e3
+              << " mm\n";
+  }
+}
+
+std::vector<clic_calib::BodyClusterObservation> FilterSectorObservations(
+    const std::vector<clic_calib::BodyClusterObservation>& obs, double t_d_L_s,
+    double sector_duration_s, int sector) {
+  std::vector<clic_calib::BodyClusterObservation> out;
+  out.reserve(obs.size());
+  for (const auto& o : obs) {
+    const double t_world = o.t_sensor_ - t_d_L_s;
+    const int s =
+        (t_world < sector_duration_s - 1e-6) ? 0 : 1;
+    if (s == sector) {
+      out.push_back(o);
+    }
+  }
+  return out;
+}
+
+clic_calib::TrajectoryAttitudeSpread AttitudeSpreadOnGt(
+    const clic_calib::BodyTrajectory& gt_traj, double t_d_L_s,
+    const std::vector<clic_calib::BodyClusterObservation>& obs) {
+  return clic_calib::ComputeAttitudeSpreadAtObservations(gt_traj, t_d_L_s, obs);
+}
+
 void PrintFlightEntryTable(
     const char* label,
     const clic_calib::experiments::DualFlightEntryMetrics& m,
@@ -354,11 +402,95 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
           ds_e10, levers, noise, cfg_e10, kObservedMeanIters,
           high_rate_policy);
 
+  std::cout << "\n=== Isolation (1): PW + NE-only roll lock @ 10 Hz ===\n";
+  std::cout << "  Stage-1: PW native RTK; POI roll scale="
+            << geom_e.poi_sector0_attitude_scale << " on NE sector only\n";
+  std::cout << "  10Hz NE obs=" << rep_e10_fixed.calib.ne.calib.observed_mean.trans_mm
+            << " mm"
+            << (rep_e10_fixed.calib.ne.calib.observed_mean_applied ? ""
+                                                                   : " (fallback)")
+            << "  SW obs="
+            << rep_e10_fixed.calib.sw.calib.observed_mean.trans_mm << " mm"
+            << (rep_e10_fixed.calib.sw.calib.observed_mean_applied ? ""
+                                                                   : " (fallback)")
+            << "\n";
+  std::cout << "  (76cf1d6 ref: NE 53.9 / SW 117.6 mm; fbe701f both-tight: 148.7 / 199.9)\n";
+
+  const auto geom_e_both =
+      clic_calib::experiments::DiagonalFlightE_BothSectorsTight_Geometry();
+  const auto geom_e10_both = geom_e10;
+  auto geom_e10_both_mut = geom_e10_both;
+  geom_e10_both_mut.poi_roll_scale_all_sectors = true;
+  const auto ds_e10_both =
+      clic_calib::experiments::BuildDualDiagonalScenario(
+          kRepSeed, noise, geom_e10_both_mut, spline_cfg, t_d_nominal);
+  const auto rep_e10_both =
+      clic_calib::experiments::CalibrateDualDiagonalFlightEntry(
+          ds_e10_both, levers, noise, cfg_e10, kObservedMeanIters,
+          high_rate_policy);
+  std::cout << "  both-sector tight repro: NE="
+            << rep_e10_both.calib.ne.calib.observed_mean.trans_mm << " SW="
+            << rep_e10_both.calib.sw.calib.observed_mean.trans_mm << " mm\n";
+
+  std::cout << "\n=== SW observed-mean audit @ 0.5 Hz (2)(3) ===\n";
+  const auto ps_sw =
+      clic_calib::experiments::ToPhase15SensorSlice(ds_e, "lidar_SW");
+  const Eigen::Vector3d post_sw =
+      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
+                                                  "lidar_SW");
+  const double u_B_sw = clic_calib::experiments::ComputeUBAzimuthStdDeg(
+      ds_e.sc.gt_traj, ds_e.sc.gt.t_d_L_s, post_sw, ps_sw.body_cluster);
+  const auto sw_obs_ne_only = clic_calib::experiments::AuditObservedMeanPath(
+      ps_sw, levers, noise, cfg_e05, ps_sw.body_cluster, u_B_sw,
+      kObservedMeanIters);
+  PrintObservedMeanAudit("SW NE-only tighten", sw_obs_ne_only);
+
+  const auto ds_e_both =
+      clic_calib::experiments::BuildDualDiagonalScenario(
+          kRepSeed, noise, geom_e_both, spline_cfg, t_d_nominal);
+  const auto ps_sw_both =
+      clic_calib::experiments::ToPhase15SensorSlice(ds_e_both, "lidar_SW");
+  const double u_B_sw_both = clic_calib::experiments::ComputeUBAzimuthStdDeg(
+      ds_e_both.sc.gt_traj, ds_e_both.sc.gt.t_d_L_s, post_sw,
+      ps_sw_both.body_cluster);
+  const auto sw_obs_both = clic_calib::experiments::AuditObservedMeanPath(
+      ps_sw_both, levers, noise, cfg_e05, ps_sw_both.body_cluster, u_B_sw_both,
+      kObservedMeanIters);
+  PrintObservedMeanAudit("SW both-sector tight", sw_obs_both);
+
+  const auto sw_sector_obs = FilterSectorObservations(
+      ps_sw.body_cluster, ds_e.sc.gt.t_d_L_s, geom_e.sector_duration_s, 1);
+  const auto spread_sw_ne =
+      AttitudeSpreadOnGt(ds_e.sc.gt_traj, ds_e.sc.gt.t_d_L_s, sw_sector_obs);
+  const auto spread_sw_both = AttitudeSpreadOnGt(
+      ds_e_both.sc.gt_traj, ds_e_both.sc.gt.t_d_L_s,
+      FilterSectorObservations(ps_sw_both.body_cluster, ds_e_both.sc.gt.t_d_L_s,
+                               geom_e_both.sector_duration_s, 1));
+  std::cout << "  R_WB@SW sector (GT traj, sector-local obs):\n";
+  std::cout << std::fixed << std::setprecision(3);
+  std::cout << "    NE-only tighten:  yaw_cv=" << spread_sw_ne.yaw_circular_variance
+            << " pitch_std=" << spread_sw_ne.pitch_std_deg << " deg\n";
+  std::cout << "    both-sector 0.35: yaw_cv=" << spread_sw_both.yaw_circular_variance
+            << " pitch_std=" << spread_sw_both.pitch_std_deg << " deg\n";
+
+  const auto ps_ne =
+      clic_calib::experiments::ToPhase15SensorSlice(ds_e, "lidar_NE");
+  const Eigen::Vector3d post_ne =
+      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
+                                                  "lidar_NE");
+  const double u_B_ne = clic_calib::experiments::ComputeUBAzimuthStdDeg(
+      ds_e.sc.gt_traj, ds_e.sc.gt.t_d_L_s, post_ne, ps_ne.body_cluster);
+  const auto ne_audit = clic_calib::experiments::AuditObservedMeanPath(
+      ps_ne, levers, noise, cfg_e05, ps_ne.body_cluster, u_B_ne,
+      kObservedMeanIters);
+  PrintObservedMeanAudit("NE sector (ref)", ne_audit);
+
+  std::cout << "\n=== fbe701f Stage-2 touch audit ===\n";
+  std::cout << "  git diff 76cf1d6..fbe701f: no stage2/refiner/pipeline files\n";
+  std::cout << "  Stage-2 path unchanged; regression from geometry (both-sector roll)\n";
+
   std::cout << "\n=== 戊 fix applied (full-frame 10 Hz) ===\n";
-  std::cout << "  Stage-1: native RTK + Prais–Winsten AR(1) differenced whitening\n";
   std::cout << "  Stage-2: σ_r²/N_pts whitening ON; AR(1) decorr on bias norm\n";
-  std::cout << "  NE+SW POI roll scale="
-            << geom_e.poi_sector0_attitude_scale << " (tight lock)\n";
   std::cout << "  10Hz NE frames=" << rep_e10_fixed.calib.ne.body_frames
             << "  est. lag-1 ρ(bias‖)≈" << rho_ne10 << " (POI prior if low)\n";
 
@@ -388,12 +520,6 @@ TEST(Phase3DualLidarExperimentA, AspectDiagnosticFlightDAndPOIFlightE) {
             << " m  Δ=" << (range_ne - range_sw) * 1e3 << " mm\n";
   const auto vary_e_ne = AspectOnFlight(ds_e, "lidar_NE", levers);
   const auto vary_e_sw = AspectOnFlight(ds_e, "lidar_SW", levers);
-  const Eigen::Vector3d post_ne =
-      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
-                                                  "lidar_NE");
-  const Eigen::Vector3d post_sw =
-      clic_calib::experiments::DiagonalLidarPostW(geom_e.dual_preset,
-                                                  "lidar_SW");
   const auto proj_ne = clic_calib::ComputeAspectLeverTranslationProjection(
       ds_e.sc.gt_traj, ds_e.gt_lidars.T_LW.at("lidar_NE"), ds_e.sc.gt.t_d_L_s,
       levers.L_B_to_body_centroid, post_ne,

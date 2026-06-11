@@ -92,9 +92,11 @@ struct DualDiagonalFlightGeometry : SyntheticFlightGeometry {
   /** 飞行丁: commanded yaw sweep span per sector [rad] (independent of orbit translation). */
   double sector_yaw_span_rad = 1.95 * M_PI;
   /**
-   * 飞行戊 POI: scale roll on both sectors; 1=full, 0=locked (NE+SW tight lock).
+   * 飞行戊 POI: scale roll on NE sector (sector 0); 1=full, 0=locked.
+   * Set @p poi_roll_scale_all_sectors for diagnostic both-sector repro.
    */
   double poi_sector0_attitude_scale = 1.0;
+  bool poi_roll_scale_all_sectors = false;
 };
 
 inline DualDiagonalFlightGeometry DiagonalDualLidarBaseGeometry() {
@@ -196,6 +198,14 @@ inline DualDiagonalFlightGeometry DiagonalFlightE_10Hz_Geometry() {
   return g;
 }
 
+/** Diagnostic: fbe701f both-sector roll lock repro (not production default). */
+inline DualDiagonalFlightGeometry DiagonalFlightE_BothSectorsTight_Geometry() {
+  DualDiagonalFlightGeometry g = DiagonalFlightE_Geometry();
+  g.label = "diagonal_flight_E_poi_both_sectors_tight";
+  g.poi_roll_scale_all_sectors = true;
+  return g;
+}
+
 inline DualDiagonalFlightGeometry DiagonalFlightC_Geometry() {
   DualDiagonalFlightGeometry g = DiagonalDualLidarBaseGeometry();
   g.label = "diagonal_flight_C_constant_heading_sector_jitter";
@@ -270,7 +280,9 @@ inline SE3d PoseWbFromDualDiagonalGeometry(
     R = SO3d::rotZ(yaw_poi);
     if (geom.high_attitude_variation) {
       double roll_scale = 1.0;
-      if (geom.poi_sector0_attitude_scale >= 0.0) {
+      const bool tighten_roll =
+          geom.poi_roll_scale_all_sectors || (sector == 0);
+      if (tighten_roll && geom.poi_sector0_attitude_scale >= 0.0) {
         roll_scale = geom.poi_sector0_attitude_scale;
       }
       R = R * SO3d::rotY(geom.pitch_amp_rad * std::sin(2.0 * M_PI * u)) *

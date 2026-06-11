@@ -392,6 +392,75 @@ inline IterativeObservedMeanResult RunBodyPathIterativeObservedMean(
   return out;
 }
 
+/** Gate / fallback / p_B audit for observed-mean path debugging. */
+struct ObservedMeanPathAudit {
+  bool gate_on = false;
+  bool applied = false;
+  bool trans_ok = false;
+  bool cost_ok = false;
+  TrajectoryAttitudeSpread aspect{};
+  Eigen::Vector3d p_B_nominal = Eigen::Vector3d::Zero();
+  Eigen::Vector3d p_B_after_stage1 = Eigen::Vector3d::Zero();
+  Eigen::Vector3d p_B_final_iter = Eigen::Vector3d::Zero();
+  double cent_trans_mm = 0.0;
+  double obs_trans_mm = 0.0;
+  double cent_cost = 0.0;
+  double obs_cost = 0.0;
+};
+
+inline ObservedMeanPathAudit AuditObservedMeanPath(
+    const Phase15Scenario& ps, const LeverArmConfig& levers,
+    const NoiseModel& noise, const TwoStagePipelineConfig& base_cfg,
+    const std::vector<BodyClusterObservation>& body_obs,
+    double u_B_azimuth_std_deg, int observed_mean_iters = 3,
+    const std::vector<double>* temporal_sqrt_info_scales = nullptr) {
+  ObservedMeanPathAudit audit;
+  audit.p_B_nominal = levers.L_B_to_body_centroid;
+  audit.aspect = ComputeAttitudeSpreadAtObservations(
+      ps.sc.gt_traj, ps.sc.gt.t_d_L_s, body_obs);
+  audit.gate_on = ShouldApplyObservedMeanPB(audit.aspect, {},
+                                            u_B_azimuth_std_deg);
+
+  TwoStagePipelineConfig cent_cfg = base_cfg;
+  if (temporal_sqrt_info_scales != nullptr) {
+    cent_cfg.refine.body_temporal_sqrt_info_scales =
+        *temporal_sqrt_info_scales;
+  }
+  const auto cent = RunBodyPathOutcome(ps, levers, noise, cent_cfg,
+                                       BodyLeverArmMode::kNominalYaml,
+                                       body_obs);
+  audit.cent_trans_mm = cent.metrics.trans_mm;
+  audit.cent_cost = cent.refine_cost;
+
+  Stage1TrajectoryResult s1;
+  GeometricInitReport geo;
+  if (!FitStage1AndGeometricInit(ps, levers, cent_cfg, body_obs, &s1, &geo)) {
+    return audit;
+  }
+  audit.p_B_after_stage1 = EstimateObservedMeanBodyLever(
+      *s1.trajectory, geo.init.T_LW, ps.sc.gt.t_d_L_s, body_obs,
+      temporal_sqrt_info_scales);
+
+  if (!audit.gate_on) {
+    return audit;
+  }
+  const auto iter = RunBodyPathIterativeObservedMean(
+      ps, levers, noise, base_cfg, body_obs, observed_mean_iters,
+      temporal_sqrt_info_scales);
+  audit.obs_trans_mm = iter.final_metrics.trans_mm;
+  audit.obs_cost = iter.final_refine_cost;
+  audit.trans_ok =
+      iter.final_metrics.stage2_ok &&
+      iter.final_metrics.trans_mm <= cent.metrics.trans_mm + 1e-3;
+  audit.cost_ok = iter.final_metrics.stage2_ok &&
+                  iter.final_refine_cost <= cent.refine_cost + 1e-6;
+  audit.applied = audit.trans_ok && audit.cost_ok;
+  if (!iter.L_B_per_iter.empty()) {
+    audit.p_B_final_iter = iter.L_B_per_iter.back();
+  }
+  return audit;
+}
+
 struct GatedObservedMeanCalibResult {
   Phase15TlwMetrics centroid_only;
   Phase15TlwMetrics observed_mean;

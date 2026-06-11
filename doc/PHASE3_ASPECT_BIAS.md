@@ -14,7 +14,7 @@
 
 1. **v2 field:** `centroid_cov = σ_r² / N_pts`; refine `use_centroid_cov_whitening = true` on 10 Hz path.
 2. **`TemporalDecorrelationConfig`:** AR(1) uniform scale `√((1−ρ)/(1+ρ))` on `body_temporal_sqrt_info_scales`; ρ from bias-norm lag-1 with **POI dwell floor ρ≥0.88** when `u_B` std ≤ 5°; applied in observed-mean + refine.
-3. **POI roll lock:** `poi_sector0_attitude_scale = 0.35` on **both** NE+SW sectors → `u_B` std **1.3°** each.
+3. **POI roll lock:** `poi_sector0_attitude_scale = 0.35` on **NE sector only** (SW full roll).
 4. **Removed:** `uniform_temporal_stride`, `match_streams_from`, aspect-quota subsample on 10 Hz calib.
 
 ## Stage-1 RTK @ native rate (Prais–Winsten v3)
@@ -43,19 +43,19 @@ PW: `r̃₁=√(1−ρ²)·r₁/σ`, `r̃ₜ=(rₜ−ρ·rₜ₋₁)/(σ√(1−
 
 | tier | NE obs | SW obs | rel rot | center-reg |
 |------|--------|--------|---------|------------|
-| **0.5 Hz** | **15.6 mm** | **43.2 mm** | **0.08°** | 57 mm |
-| **10 Hz full** | **148.7 mm**† | **199.9 mm**† | 0.51° | 324 mm |
+| **0.5 Hz** | **12.2 mm** | **42.0 mm** | **0.12°** | 41 mm |
+| **10 Hz full** | **58.8 mm** | **117.7 mm**† | 0.18° | 134 mm |
 
-† Both 10 Hz: observed-mean **fallback** (bad Stage-1 trajectory + dense dwell correlation).
+† SW 10 Hz: observed-mean **fallback** (same as 76cf1d6). **fbe701f regression** (NE 149 / SW 200) was **both-sector roll 0.35**, not PW Stage-2.
 
 ## (B) entry @ 10 Hz full-frame
 
 | Metric | Threshold | Status |
 |--------|-----------|--------|
-| Each obs `\|trans\|` | ≤ 35 mm | NE **149** ✗ SW **200** ✗ |
-| rel rot | ≤ 0.1° | **0.51°** ✗ |
+| Each obs `\|trans\|` | ≤ 35 mm | NE **59** ✗ SW **118** ✗ |
+| rel rot | ≤ 0.1° | **0.18°** ✗ |
 
-**Not entering (B).** Stage-1 PW improved 10 Hz RMSE 36→27 mm; Stage-2 10 Hz still diverges — needs joint body+RTK Cholesky or stronger dwell decorrelation.
+**Not entering (B).** PW + NE-only roll restores 76cf1d6-class Stage-2; SW 0.5 Hz obs ~42 mm with **gate ON / applied YES** (not centroid-only) — asymmetry is not SW fallback.
 
 ## Serial POI (flight 戊)
 
