@@ -1,5 +1,6 @@
 #include <clic_calib/estimator/extrinsic_initializer.h>
 
+#include <clic_calib/sensor_data/body_cluster_observation.h>
 #include <clic_calib/target/sphere_center_fit.h>
 #include <clic_calib/utils/sophus_utils.hpp>
 
@@ -193,6 +194,50 @@ bool InitTLWFromLidarSphereCenters(
   return true;
 }
 
+bool InitTLWFromBodyCentroids(
+    const BodyTrajectory& traj,
+    const std::vector<BodyClusterObservation>& body_cluster,
+    const Eigen::Vector3d& L_B_to_body, double t_d_L_s, SE3d* T_LW,
+    UmeyamaRigid* umeyama = nullptr, int* num_pairs = nullptr,
+    const std::vector<Eigen::Vector3d>* L_B_per_obs = nullptr) {
+  if (!T_LW) {
+    return false;
+  }
+  std::vector<Eigen::Vector3d> p_L_list;
+  std::vector<Eigen::Vector3d> p_W_list;
+  for (size_t i = 0; i < body_cluster.size(); ++i) {
+    const auto& obs = body_cluster[i];
+    if (obs.point_count_ < 3) {
+      continue;
+    }
+    const Eigen::Vector3d L_B =
+        (L_B_per_obs && i < L_B_per_obs->size()) ? (*L_B_per_obs)[i]
+                                                 : L_B_to_body;
+    const double t_world = obs.t_sensor_ - t_d_L_s;
+    p_L_list.push_back(obs.centroid_L_);
+    p_W_list.push_back(traj.body_centroid_w(t_world, L_B));
+  }
+  if (p_L_list.size() < 3) {
+    return false;
+  }
+  Eigen::MatrixXd P(3, static_cast<int>(p_L_list.size()));
+  Eigen::MatrixXd Q(3, static_cast<int>(p_W_list.size()));
+  for (size_t i = 0; i < p_L_list.size(); ++i) {
+    P.col(static_cast<int>(i)) = p_L_list[i];
+    Q.col(static_cast<int>(i)) = p_W_list[i];
+  }
+  const UmeyamaRigid u = UmeyamaAlign(P, Q);
+  if (umeyama) {
+    *umeyama = u;
+  }
+  if (num_pairs) {
+    *num_pairs = static_cast<int>(p_L_list.size());
+  }
+  const SE3d T_WL(u.R, u.t);
+  *T_LW = T_WL.inverse();
+  return true;
+}
+
 bool InitTCWFromAprilTagPnPBatch(
     const BodyTrajectory& traj, const std::vector<AprilTagObservation>& tags,
     const Eigen::Vector3d& L_B_to_G, const Eigen::Vector3d& L_G_to_M,
@@ -359,8 +404,10 @@ bool InitTCWFromAprilTagPnPPerFrame(
 GeometricInitReport ExtrinsicInitializer::FromGeometric(
     const BodyTrajectory& traj,
     const std::vector<LiDARTargetObservation>& lidar,
+    const std::vector<BodyClusterObservation>& body_cluster,
     const std::vector<AprilTagObservation>& tags,
-    const LeverArmConfig& levers, const ExtrinsicInitializerConfig& cfg) {
+    const LeverArmConfig& levers, const ExtrinsicInitializerConfig& cfg,
+    const std::vector<Eigen::Vector3d>* L_B_per_obs) {
   GeometricInitReport rep;
   const auto lg_it = levers.L_G_to_M.find(cfg.marker_id);
   if (lg_it == levers.L_G_to_M.end()) {
@@ -369,9 +416,20 @@ GeometricInitReport ExtrinsicInitializer::FromGeometric(
   const Eigen::Vector3d L_G_to_M = lg_it->second;
 
   SE3d T_LW;
-  if (!InitTLWFromLidarSphereCenters(traj, lidar, levers.L_B_to_G,
-                                     cfg.nominal_t_d_L_s, cfg.sphere_radius_m,
-                                     &T_LW, &rep.lw_umeyama, &rep.lw_pairs)) {
+  const bool use_body =
+      cfg.lidar_target_mode == LidarTargetMode::kBodyCluster;
+  const bool lw_ok =
+      use_body
+          ? InitTLWFromBodyCentroids(traj, body_cluster,
+                                     levers.L_B_to_body_centroid,
+                                     cfg.nominal_t_d_L_s, &T_LW,
+                                     &rep.lw_umeyama, &rep.lw_pairs,
+                                     L_B_per_obs)
+          : InitTLWFromLidarSphereCenters(traj, lidar, levers.L_B_to_G,
+                                          cfg.nominal_t_d_L_s,
+                                          cfg.sphere_radius_m, &T_LW,
+                                          &rep.lw_umeyama, &rep.lw_pairs);
+  if (!lw_ok) {
     throw std::runtime_error(
         "ExtrinsicInitializer::FromGeometric: LiDAR Umeyama failed");
   }
@@ -388,6 +446,27 @@ GeometricInitReport ExtrinsicInitializer::FromGeometric(
   }
   rep.init.t_d_C_s = 0.0;
   rep.init.T_CW = T_CW;
+  return rep;
+}
+
+GeometricInitReport ExtrinsicInitializer::FromBodyCentroidsOnly(
+    const BodyTrajectory& traj,
+    const std::vector<BodyClusterObservation>& body_cluster,
+    const LeverArmConfig& levers, const ExtrinsicInitializerConfig& cfg,
+    const SE3d& T_CW_seed) {
+  GeometricInitReport rep;
+  SE3d T_LW;
+  const bool lw_ok = InitTLWFromBodyCentroids(
+      traj, body_cluster, levers.L_B_to_body_centroid, cfg.nominal_t_d_L_s,
+      &T_LW, &rep.lw_umeyama, &rep.lw_pairs);
+  if (!lw_ok) {
+    throw std::runtime_error(
+        "ExtrinsicInitializer::FromBodyCentroidsOnly: Umeyama failed");
+  }
+  rep.init.t_d_L_s = cfg.nominal_t_d_L_s;
+  rep.init.t_d_C_s = cfg.nominal_t_d_C_s;
+  rep.init.T_LW = T_LW;
+  rep.init.T_CW = T_CW_seed;
   return rep;
 }
 

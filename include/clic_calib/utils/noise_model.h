@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <clic_calib/sensor_data/body_cluster_observation.h>
+
 #include <Eigen/Core>
 
 #include <iostream>
@@ -26,6 +28,11 @@ struct NoiseModel {
   double attitude_sigma_pitch_deg = 0.2;
   double attitude_sigma_yaw_deg = 1.5;
 
+  /** Board-free body centroid noise (config/noise_model.yaml body_centroid). */
+  double body_centroid_sigma_base_m = 0.05;
+  double body_centroid_range_coeff = 0.001;
+  int body_centroid_min_points_for_valid = 10;
+
   static NoiseModel FromYaml(const std::string& path);
   static NoiseModel FromConfigDir(const std::string& config_dir);
 
@@ -38,6 +45,27 @@ struct NoiseModel {
   Eigen::Vector3d SampleRtkNoise(std::mt19937& rng) const;
   double SampleLidarRangeNoise(std::mt19937& rng) const;
   Eigen::Vector2d SamplePixelNoise(std::mt19937& rng) const;
+
+  /**
+   * @brief Isotropic body-centroid σ [m] vs mean range (linear growth model).
+   * σ(r) = sigma_base + range_coeff * r; invalid if point_count too low → inf.
+   */
+  double BodyCentroidSigmaM(double mean_range_m, int point_count) const;
+
+  /** @brief Diagonal covariance [m²] for body-centroid residual whitening. */
+  Eigen::Matrix3d BodyCentroidCovariance(double mean_range_m,
+                                          int point_count) const;
+
+  /** @brief Cholesky sqrt information Σ^{-1/2} (3×3) for Ceres whitening. */
+  Eigen::Matrix3d BodyCentroidSqrtInformation(double mean_range_m,
+                                              int point_count) const;
+
+  /**
+   * Whitening from v2 @p centroid_cov when present; else legacy range model.
+   * Simulated cov is isotropic (σ² I) with σ ∝ 1/√N.
+   */
+  Eigen::Matrix3d BodyCentroidSqrtInformationFromObservation(
+      const BodyClusterObservation& obs) const;
 
   void Log(std::ostream& os = std::cout) const;
 };
