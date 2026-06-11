@@ -33,14 +33,14 @@ TwoStagePipelineResult TwoStagePipeline::Run(
 
   try {
     out.geometric_init = ExtrinsicInitializer::FromGeometric(
-        *out.trajectory, lidar, tags, levers, cfg.init);
+        *out.trajectory, lidar, {}, tags, levers, cfg.init);
   } catch (const std::exception&) {
     return out;
   }
 
-  out.extrinsics = ExtrinsicRefiner::Refine(*out.trajectory, lidar, tags,
-                                            levers, noise, out.geometric_init.init,
-                                            cfg.refine);
+  out.extrinsics = ExtrinsicRefiner::Refine(
+      *out.trajectory, lidar, {}, tags, levers, noise, out.geometric_init.init,
+      cfg.refine);
   out.stage2_ok = out.extrinsics.converged;
   return out;
 }

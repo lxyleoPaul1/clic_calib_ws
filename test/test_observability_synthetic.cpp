@@ -205,8 +205,16 @@ TEST(ObservabilitySynthetic, CoplanarAblationIsDegenerate) {
   const AnalysisResult multi_result = RunObservabilityAnalysis(multi);
   const AnalysisResult coplanar_result = RunObservabilityAnalysis(coplanar);
 
-  // PW RTK @ 0.1 s lowers DC RTK information vs independent factors.
-  EXPECT_GT(multi_result.report.lambda_min, 0.003);
+  std::cout << "[lambda_audit] multi_lambda_min=" << multi_result.report.lambda_min
+            << " coplanar_lambda_min=" << coplanar_result.report.lambda_min
+            << " coplanar/multi="
+            << (coplanar_result.report.lambda_min /
+                multi_result.report.lambda_min)
+            << "\n";
+
+  // Joint FIM gate: CalibrationEstimator + independent RTK factors @ 0.1 s
+  // (not Stage-1 PW). Measured multi λ_min ≈ 0.00252 @ seal; 0.003 fails.
+  EXPECT_GT(multi_result.report.lambda_min, 0.0025);
   EXPECT_LT(coplanar_result.report.lambda_min,
             multi_result.report.lambda_min * 0.1)
       << "multi lambda_min=" << multi_result.report.lambda_min

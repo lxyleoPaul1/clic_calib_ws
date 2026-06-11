@@ -705,7 +705,7 @@ struct CalibrationEstimator::Impl {
     init_cfg.camera_dist = cc.dist;
 
     const GeometricInitReport geo = ExtrinsicInitializer::FromGeometric(
-        *trajectory, lidar_obs.at(lidar_id), apriltag_obs.at(camera_id),
+        *trajectory, lidar_obs.at(lidar_id), {}, apriltag_obs.at(camera_id),
         levers, init_cfg);
 
     ExtrinsicRefinerConfig refine_cfg;
@@ -718,7 +718,7 @@ struct CalibrationEstimator::Impl {
     refine_cfg.max_iterations = max_iters;
 
     const ExtrinsicRefinerResult s2 = ExtrinsicRefiner::Refine(
-        *trajectory, lidar_obs.at(lidar_id), apriltag_obs.at(camera_id),
+        *trajectory, lidar_obs.at(lidar_id), {}, apriltag_obs.at(camera_id),
         levers, noise_model, geo.init, refine_cfg);
 
     if (!s2.converged) {

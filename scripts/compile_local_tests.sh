@@ -68,9 +68,6 @@ EST_SRCS=(
   "${ROOT}/src/clic_calib/io/attitude_reader.cpp"
   "${ROOT}/src/clic_calib/io/observation_archive.cpp"
   "${ROOT}/src/clic_calib/io/calibration_result.cpp"
-  "${ROOT}/src/clic_calib/io/sensor_rig_config.cpp"
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp"
-  "${ROOT}/src/clic_calib/config/body_cluster_detection_config.cpp"
 )
 
 build_one() {
@@ -154,36 +151,8 @@ build_one test_two_stage_pipeline \
   "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
-PHASE15_SRCS=(
-  "${ROOT}/src/clic_calib/target/body_centroid_analysis.cpp"
-  "${ROOT}/src/clic_calib/target/drone_model_registration.cpp"
-)
-
-build_one test_board_free_e2e_comparison \
-  "${ROOT}/test/test_board_free_e2e_comparison.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
-
-build_one test_phase15_main_table \
-  "${ROOT}/test/test_phase15_main_table.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
-  "${PHASE15_SRCS[@]}" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
+# Deferred to T-ITS / Phase 2 (untracked WIP): phase15_*, clicob_*, body_cluster_extractor,
+# board_free_e2e, real_data_interface (needs sensor_rig_config).
 
 build_one test_phase3_dual_lidar_experiment_a \
   "${ROOT}/test/test_phase3_dual_lidar_experiment_a.cpp" \
@@ -211,75 +180,8 @@ build_one test_phase3_dual_lidar_phase_b \
   "${TEMPORAL_CORR_OBJ}" \
   ${OPENCV_LIBS}
 
-build_one test_phase15_joint_opt_audit \
-  "${ROOT}/test/test_phase15_joint_opt_audit.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
-
-build_one test_phase15_contradiction_audit \
-  "${ROOT}/test/test_phase15_contradiction_audit.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
-  "${PHASE15_SRCS[@]}" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
-
-build_one test_phase15_ablation \
-  "${ROOT}/test/test_phase15_ablation.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/estimator/stage1_trajectory_fitter.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_initializer.cpp" \
-  "${ROOT}/src/clic_calib/estimator/extrinsic_refiner.cpp" \
-  "${ROOT}/src/clic_calib/estimator/two_stage_pipeline.cpp" \
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
-  "${PHASE15_SRCS[@]}" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp" \
-  "${TEMPORAL_CORR_OBJ}" \
-  ${OPENCV_LIBS}
-
 build_one test_uq_decomposition \
   "${ROOT}/test/test_uq_decomposition.cpp" \
-  "${EST_SRCS[@]}" \
-  ${OPENCV_LIBS}
-
-build_one test_clicob_v2_roundtrip \
-  "${ROOT}/test/test_clicob_v2_roundtrip.cpp" \
-  "${ROOT}/src/clic_calib/io/observation_archive.cpp" \
-  "${ROOT}/src/clic_calib/io/sensor_rig_config.cpp" \
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
-  "${ROOT}/src/clic_calib/config/body_cluster_detection_config.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
-
-build_one test_clicob_v1_backward_compat \
-  "${ROOT}/test/test_clicob_v1_backward_compat.cpp" \
-  "${ROOT}/src/clic_calib/io/observation_archive.cpp"
-
-build_one test_body_cluster_extractor \
-  "${ROOT}/test/test_body_cluster_extractor.cpp" \
-  "${TRAJ_OBJ}" \
-  "${ROOT}/src/clic_calib/target/body_cluster_extractor.cpp" \
-  "${ROOT}/src/clic_calib/target/drone_model_registration.cpp" \
-  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
-  "${ROOT}/src/clic_calib/config/body_cluster_detection_config.cpp" \
-  "${ROOT}/src/clic_calib/utils/lever_arm.cpp" \
-  "${ROOT}/src/clic_calib/utils/noise_model.cpp"
-
-build_one test_real_data_interface \
-  "${ROOT}/test/test_real_data_interface.cpp" \
   "${EST_SRCS[@]}" \
   ${OPENCV_LIBS}
 

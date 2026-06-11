@@ -1,7 +1,8 @@
 # Board-free calibration — frozen baseline (Phase A → B handoff)
 
-**Status:** FROZEN @ `72050cc` family (PW + NE-only POI roll). Do not mutate these
-numbers when changing `CalibrationEstimator` in Phase B.
+**Status:** Simulation **SEALED** — code baseline `33f9647`, build/doc seal commit
+on `refactor/two-stage-estimator` (see git log after Phase 0). Do not mutate frozen
+numbers; next step is field data.
 
 **Rep seed:** `13025` unless noted. **Noise:** `config/noise_model.yaml`.
 
@@ -119,45 +120,85 @@ u_B 3.58°→1.26° under both-flag does not shrink obs → synthesis limit.
 
 ---
 
-## Phase B scope (not frozen here)
+## §7.2 — Relative extrinsic covariance (simulation SEALED @ `33f9647`)
 
-Phase B changes **`CalibrationEstimator`** only. Outputs unique to multi-LiDAR:
+**Test:** `test_phase3_dual_lidar_phase_b` · **MC:** N=20, obs fixed @rep, flight 戊
+0.5 Hz, independent Stage-2 per LiDAR · **Injection API:** `RtkMcInjectionConfig`
+in `dual_lidar_scenario_common.hpp`.
 
-1. **(a)** Relative extrinsic covariance + RTK common-mode cancellation
-   (`Cov(T_{L1L2})` vs absolute) — `test_phase3_dual_lidar_phase_b`.
-2. **(b)** Intersection **center registration error** as primary relative metric
-   (replaces rel-trans @ 70.7 m baseline leverage).
+### (b) Primary relative metric @ seed 13025
 
-### Phase B snapshot @ seed 13025 (`test_phase3_dual_lidar_phase_b`)
+| Metric | @ rep | Role |
+|--------|-------|------|
+| **center-reg (obs)** | **40.9 mm** | **headline** — rotation-dominated, no 70.7 m leverage |
+| rel-trans (obs) | 49.0 mm | deprecated lever metric |
+| center / rel | **0.84×** | |
 
-**(b) Primary relative metric (frozen):**
+### (a) RTK perturbation source — causal chain (accepted)
 
-| Metric | @ rep |
-|--------|-------|
-| center-reg (obs) | **40.9 mm** |
-| rel-trans (obs) | 49.0 mm |
-| center / rel | **0.84×** |
+| Injection | trace Cov(δt_rel) / mean Cov(δt_abs) | r(‖δp‖\_NE, ‖δp‖\_SW) | Mechanism |
+|-----------|--------------------------------------|-------------------------|-----------|
+| **White noise (per epoch)** | **3.10×** | **0.40** | Serial 0–45 s / 45–90 s: uncorrelated δp → stacks in T_rel |
+| **Coherent system bias** | **0.17×** | **1.00** | One global offset/epoch → common-mode cancels in T_rel |
 
-**(a) RTK perturbation source (§7.2) — N=20, obs=@rep, serial 戊:**
+**Claims (paper wording):**
 
-| Injection | trace Cov(δt_rel) / mean Cov(δt_abs) | r(‖δp‖\_NE, ‖δp‖\_SW) |
-|-----------|--------------------------------------|-------------------------|
-| **White noise (per epoch)** | **3.10×** (stacks in T_rel) | **0.40** (segments independent) |
-| **Coherent system bias** | **0.17×** (cancels in T_rel) | **1.00** |
+- **Under a coherent systematic-bias assumption**, relative extrinsic covariance
+  is tighter than absolute (`0.17×`); robust even with independent Stage-2.
+- **White RTK noise composes** in the relative frame (`3.10×`) — not an estimator
+  architecture issue; per-epoch noise does not cohere across serial sectors.
 
-**Precise claims:**
+### (3) Temporal overlap @ handoff
 
-- Relative extrinsic is **robust to RTK systematic (coherent) bias** — common-mode
-  cancellation in `T_rel` even with independent Stage-2.
-- **White RTK noise composes** in the relative frame (~3× vs absolute) — not a
-  joint-estimator issue; per-epoch noise + serial sectors do not share coherent
-  perturbation across 0–45 s / 45–90 s.
+| Geometry | coherent-bias rel/mean(abs) |
+|----------|----------------------------|
+| Serial 戊 | **0.17×** |
+| +10 s overlap | **0.15×** |
 
-**(3) Temporal overlap (10 s @ handoff):** coherent-bias rel/mean(abs) **0.15×**
-(vs serial **0.17×**). Board-free does not require spatial FOV overlap; brief
-temporal overlap can further tighten relative UQ.
+Brief temporal overlap at sector handoff can tighten relative UQ without requiring
+spatial FOV overlap (board-free selling point, sharpened).
 
-See `doc/multi_lidar_board_free_blueprint.md`.
+### §7.2 scope boundary (mandatory disclosure)
+
+The **0.17×** ratio depends on the injected **rigid global bias model**
+(`RtkMcInjectionMode::kCoherentSystemBiasOnly`, σ_h=**50 mm**, σ_v=**100 mm**,
+one draw applied identically to every RTK epoch). Real RTK error includes drift,
+colored noise, and lever-arm coupling — **not perfect common-mode**. Field
+cancellation is expected to be **weaker than 0.17×**; hardware relative extrinsic
+residual under coherent bias is the **empirical test** of this assumption.
+
+**Do not cite 0.17× as a field guarantee.** Cite: *under coherent systematic-bias
+assumption (simulation)*.
+
+---
+
+## ⑧ Coplanar observability gate (joint FIM λ_min)
+
+**Test:** `test_observability_synthetic` · `CoplanarAblationIsDegenerate` · prints
+`[lambda_audit]` on every run.
+
+| Configuration | λ_min (measured @ seal build) | Notes |
+|---------------|------------------------------|-------|
+| **Multi-layer** (well observed) | **0.002520** | joint FIM floor |
+| **Coplanar** (degenerate ablation) | **~0** (numerical null) | coplanar/multi **≪ 0.1** ✓ |
+
+**Threshold audit (Phase 0):**
+
+- Gate path = **joint `CalibrationEstimator` FIM** with **independent** `RTKPositionFactor`
+  @ 0.1 s spacing — **not** Stage-1 Prais–Winsten (PW is Stage-1 only; PW before/after
+  does not apply to this test).
+- `fbe701f` lowered absolute floor **0.01 → 0.003**; at seal build **multi = 0.002520
+  < 0.003** → **0.003 fails** (not “凑绿”, measured regression on joint FIM).
+- **Adopt 0.0025** absolute floor: margin **1.008×** over measured multi (**tight**).
+  Primary degeneracy check remains **coplanar < 0.1 × multi** (strong separation).
+- **Do not cite** “358× margin”; that came from an incomplete link set during debug.
+
+---
+
+## Simulation phase status
+
+**SEALED** after `33f9647` + seal commit. No further synthetic tuning. Next step:
+**field data** per `doc/multi_lidar_board_free_blueprint.md` §真机对角双 Ruby 实验清单.
 
 ---
 

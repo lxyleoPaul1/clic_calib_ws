@@ -6,6 +6,14 @@
 
 namespace clic_calib {
 
+enum class LidarTargetMode { kSphere, kBodyCluster };
+
+enum class BodyLeverArmMode {
+  kNominalYaml,
+  kObservedMean,
+  kJointOptimize
+};
+
 struct CoarseExtrinsicInit {
   SE3d T_LW;
   SE3d T_CW;

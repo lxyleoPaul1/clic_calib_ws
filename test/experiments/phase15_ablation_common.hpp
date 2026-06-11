@@ -156,7 +156,7 @@ inline TwoStagePipelineResult RunSpherePath(
     const Phase15Scenario& ps, const LeverArmConfig& levers,
     const NoiseModel& noise, const TwoStagePipelineConfig& cfg) {
   return TwoStagePipeline::Run(ps.sc.rtk, ps.sc.attitude_obs, ps.sc.lidar_obs,
-                               {}, ps.sc.tag_obs, levers, noise, cfg);
+                               ps.sc.tag_obs, levers, noise, cfg);
 }
 
 inline bool FitStage1AndGeometricInit(
