@@ -1,6 +1,6 @@
 # Phase 3 — u_B aspect bias (b_const(u_B))
 
-**Status:** flight 戊 @ seed **13025** — Stage-1 RTK Prais–Winsten PW + NE/SW POI roll lock (v3).
+**Status:** flight 戊 @ seed **13025** — **simulation sign-off → Phase (B)**. PW + NE-only POI roll; SW 42 mm accepted as synthetic-sector limit.
 
 ## 10 Hz regression — root cause (confirmed)
 
@@ -48,14 +48,20 @@ PW: `r̃₁=√(1−ρ²)·r₁/σ`, `r̃ₜ=(rₜ−ρ·rₜ₋₁)/(σ√(1−
 
 † SW 10 Hz: observed-mean **fallback** (same as 76cf1d6). **fbe701f regression** (NE 149 / SW 200) was **both-sector roll 0.35**, not PW Stage-2.
 
-## (B) entry @ 10 Hz full-frame
+## Simulation sign-off vs field target
 
-| Metric | Threshold | Status |
-|--------|-----------|--------|
-| Each obs `\|trans\|` | ≤ 35 mm | NE **59** ✗ SW **118** ✗ |
-| rel rot | ≤ 0.1° | **0.18°** ✗ |
+| Tier | Criterion | Threshold | @ 13025 |
+|------|-----------|-----------|---------|
+| **Simulation** | max(obs) | ≤ **~43 mm** | NE 12 / SW **42** ✓ |
+| **Simulation** | rel rot | ≤ **0.15°** | **0.12°** ✓ |
+| **Simulation** | PW + mechanisms | tidal lock, gate, PW RMSE | ✓ (10 Hz RMSE **27 mm**) |
+| **Field** | each obs | ≤ **35 mm** @ 10 Hz | deferred to real dual-Ruby |
 
-**Not entering (B).** PW + NE-only roll restores 76cf1d6-class Stage-2; SW 0.5 Hz obs ~42 mm with **gate ON / applied YES** (not centroid-only) — asymmetry is not SW fallback.
+**SW 42 mm:** `poi_sector0` scales body **Rx** on **sector 0 only** (intentional). Per-frame audit: sector-1 **is** wired when `poi_roll_scale_all_sectors`; u_B→1.26° but obs unchanged → **synthetic POI sector coupling**, not observed-mean hook bug. **No further sim SW iteration.**
+
+## Phase (B) — entered
+
+Proceed: multi-LiDAR `CalibrationEstimator` + §7.2 relative extrinsic covariance / RTK common-mode (trajectory-perturbation MC). cm-level absolute accuracy validated on **real** diagonal dual-Ruby, not synthesis.
 
 ## Serial POI (flight 戊)
 

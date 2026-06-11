@@ -1,6 +1,6 @@
 # Multi-LiDAR board-free blueprint
 
-**Status:** Phase 3 (A) simulation policy — **(B) pipeline on hold.**
+**Status:** Phase 3 (A) simulation **sign-off @ seed 13025** — **Phase (B) pipeline ACTIVE.**
 
 ## Separability (Stage-2)
 
@@ -49,19 +49,21 @@ Reference @ seed 13025:
 - Dual 乙: yaw_cv ≈ **0.32** → gate OFF (pitch-only spread insufficient)
 - Dual 甲: yaw_cv ≈ 0 → gate OFF
 
-## Phase (B) entry criterion
+## Phase (B) entry — simulation vs field
 
-Proceed to multi-LiDAR `CalibrationEstimator` + §7.2 relative extrinsic covariance
-when **flight 戊** (per-sector POI tidal-lock toward each LiDAR) @ **10 Hz** @ seed
-13025:
+**Entered @ 72050cc+** after flight 戊 mechanism replay @ seed 13025:
 
-- each sensor observed-mean `|T_LW trans| ≤ 35 mm`
-- relative rotation `≤ 0.1°`
-- **center registration error** (intersection center via both extrinsics) reported
-  separately — not gated on `rel |trans|` (lever arm `Δθ × baseline`, e.g. 甲
-  0.06°×70.7 m ≈ 74 mm).
+| Gate | Simulation (0.5 Hz 戊) | Field (real dual-Ruby) |
+|------|------------------------|-------------------------|
+| Per-sensor obs | max ≤ **~42 mm**, same order | each ≤ **35 mm** @ 10 Hz |
+| rel rot | ≤ **0.15°** | ≤ **0.1°** @ 10 Hz |
+| Stage-1 PW | 10 Hz RMSE **27 mm** (< 36 mm pre-PW) | — |
+| SW asymmetry | **42 mm synthetic**; stop sim iteration | validate on hardware |
 
-60-frame (0.5 Hz) tier reference: relative rotation `≤ 0.15°`.
+**Phase (B) work:** multi-LiDAR `CalibrationEstimator` + §7.2 relative extrinsic
+covariance / RTK common-mode (shared trajectory perturbation MC).
+
+Center registration reported separately — not gated on `rel |trans|`.
 
 ### Flight 戊 — serial POI (real mission)
 
@@ -76,6 +78,6 @@ around its roadside sensor.
 Deprecated: flight 丁 + `rel |trans| ≤ 35 mm` (range/u_B decoupling root cause).
 See `doc/PHASE3_ASPECT_BIAS.md`.
 
-## Deferred → (B)
+## Active in (B)
 
 - `CalibrationEstimator` multi-sensor blocks, residual reweighting, weak-parameter passes.

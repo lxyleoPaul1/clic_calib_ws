@@ -198,6 +198,14 @@ inline DualDiagonalFlightGeometry DiagonalFlightE_10Hz_Geometry() {
   return g;
 }
 
+/** Diagnostic: no POI roll tighten (roll_scale=1 on sector 0). */
+inline DualDiagonalFlightGeometry DiagonalFlightE_NoPoiTight_Geometry() {
+  DualDiagonalFlightGeometry g = DiagonalFlightE_Geometry();
+  g.label = "diagonal_flight_E_poi_no_tight";
+  g.poi_sector0_attitude_scale = 1.0;
+  return g;
+}
+
 /** Diagnostic: fbe701f both-sector roll lock repro (not production default). */
 inline DualDiagonalFlightGeometry DiagonalFlightE_BothSectorsTight_Geometry() {
   DualDiagonalFlightGeometry g = DiagonalFlightE_Geometry();
