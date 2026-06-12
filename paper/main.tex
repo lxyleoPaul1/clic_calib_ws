@@ -32,19 +32,18 @@ Active Attitude Excitation as a Necessary Condition}
 \maketitle
 
 \begin{abstract}
-Roadside and V2X deployments increasingly rely on multiple LiDARs with little or no
-field-of-view overlap, anchored by UAV RTK trajectories rather than calibration targets.
-We show that board-free body-centric calibration is governed not only by sensor geometry
-but by \emph{flight attitude diversity}: the empirical body centroid forms an
-aspect-dependent bias vector field on the relative bearing sphere $u_B$.
-Under concentrated aspect this field degenerates with extrinsic translation and silently
-pollutes estimates ($\sim$211\,mm in simulation); active 3D attitude excitation
-(POI tidal-lock flight) breaks the degeneracy and restores decimeter-level accuracy
-($\sim$20\,mm in simulation).
-We present a separable two-stage estimator with per-LiDAR independent Stage-2 solves,
-an aspect gate with centroid fallback, and a relative-extrinsic covariance analysis under
-coherent RTK bias (0.166$\times$ in simulation).
-Field validation on diagonal dual-Ruby intersection data is structured but pending.
+Board-free extrinsic calibration of roadside LiDARs from a UAV body is governed not
+by sensor noise but by \emph{flight attitude diversity}.
+The empirical body centroid is an aspect-dependent bias vector field on the relative
+bearing sphere $u_B$; under concentrated aspect it becomes indistinguishable from
+extrinsic translation and silently pollutes estimates ($\sim$211\,mm in simulation),
+while active 3D attitude excitation restores identifiability and decimeter-level
+accuracy ($\sim$20\,mm in simulation).
+We present a separable two-stage estimator with per-LiDAR independent Stage-2 solves
+for zero-FOV-overlap diagonal deployment, an aspect gate that falls back when
+excitation is insufficient, and a relative-extrinsic covariance analysis showing
+coherent RTK bias cancels in the relative frame (0.166$\times$ in simulation, scoped).
+Field validation on a diagonal dual-Ruby intersection is structured but pending.
 \end{abstract}
 
 \begin{IEEEkeywords}

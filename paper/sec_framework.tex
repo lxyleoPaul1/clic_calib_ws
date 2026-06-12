@@ -15,13 +15,11 @@ differenced whitening at high rate (Sec.~\ref{sec:pw}).
 The output trajectory is \textbf{frozen} before any extrinsic refinement.
 
 \subsection{Stage-2: frozen-trajectory extrinsic refinement}
-Given frozen $\hat{T}_{WB}(t)$, Stage-2 minimizes a Ceres cost over $T_{L_\ell B}$
-using body-cluster centroid factors and, when the aspect gate opens, an
-observed-mean lever $\mathbf{p}_B$ (Sec.~\ref{sec:mechanism}).
-Each LiDAR $\ell$ is solved in an \textbf{independent}
-\texttt{ExtrinsicRefiner} scope---no shared \texttt{CalibrationEstimator} state
-across sensors (\texttt{multi\_lidar\_body\_calibration}, commit
-\texttt{3fb7ddf}).
+Given frozen $\hat{T}_{WB}(t)$, Stage-2 minimizes a nonlinear least-squares cost over
+$T_{L_\ell B}$ using body-cluster centroid factors and, when the aspect gate opens,
+an observed-mean lever $\mathbf{p}_B$ (Sec.~\ref{sec:mechanism}).
+Each LiDAR is solved in an \textbf{independent} optimization scope with no shared
+state across sensors, preventing cross-sensor leakage in multi-LiDAR batches.
 
 \subsection{Multi-LiDAR composition without FOV overlap}
 For diagonal deployment (e.g., NE and SW corner posts), sensors need not see the
@@ -32,10 +30,9 @@ relative transform is composed post hoc:
   \hat{T}_{L_{\mathrm{SW}}\leftarrow L_{\mathrm{NE}}}
   = \hat{T}_{L_{\mathrm{SW}}W}\,\hat{T}_{L_{\mathrm{NE}}W}^{-1}.
 \end{equation}
-Regression tests confirm production multi-LiDAR NE/SW errors match single-sensor
-in-process solves (12.149\,mm / 42.041\,mm, simulation).
+In simulation, production multi-LiDAR NE/SW errors match single-sensor solves
+(12.149\,mm / 42.041\,mm).
 
-\subsection{Framework diagram}
 \begin{figure}[t]
   \centering
   \begin{tikzpicture}[
@@ -57,15 +54,7 @@ in-process solves (12.149\,mm / 42.041\,mm, simulation).
     \draw[arr] (s2b) -- (rel);
   \end{tikzpicture}
   \caption{Separable two-stage pipeline: shared Stage-1 trajectory, independent
-  per-LiDAR Stage-2 Ceres scopes, post-hoc relative composition.
-  \TODO{replace with publication-quality figure from figure\_table\_plan.md Fig.~1}.}
+  per-LiDAR Stage-2 solves, post-hoc relative composition.
+  \TODO{replace with publication-quality figure}.}
   \label{fig:framework}
 \end{figure}
-
-\subsection{Production modules}
-Key implementations in \texttt{clic\_calib}:
-\texttt{Stage1TrajectoryFitter} (PW-whitened RTK trajectory),
-\texttt{body\_gated\_calibration} (gated observed-mean $\times 3$ + guards),
-\texttt{observed\_mean\_gate} (yaw\_cv $\geq 0.65$ + POI path),
-\texttt{multi\_lidar\_body\_calibration} (per-sensor Stage-2 loop), and
-\texttt{relative\_extrinsic} (\S7.2 covariance and center-reg metric).

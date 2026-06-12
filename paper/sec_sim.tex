@@ -2,14 +2,17 @@
 \label{sec:sim}
 
 All numbers in this section are \textbf{(simulation)} unless noted.
-Reproduce: \texttt{scripts/verify\_frozen\_baseline\_isolation.sh} @ commits
-\texttt{f03c399} / \texttt{3fb7ddf} / \texttt{7f5c27c}; seed 13025; noise
-\texttt{config/noise\_model.yaml}.
+Code, configurations, and frozen simulation baselines will be released upon publication.
 
-\subsection{Single-LiDAR Phase~1.5 (NearFieldHighAspect)}
+We refer to simulation flight profiles as \flightD{} (wide aspect sweep with
+decoupled orbit attitude), \flightW{} (POI tidal-lock dual-sector serial),
+\flightJ{} (gate-off low-excitation control), and \flightY{} (insufficient yaw
+diversity guard case).
+
+\subsection{Single-LiDAR near-field high-aspect profile}
 \begin{table}[t]
   \centering
-  \caption{P1.5 single-LiDAR board-free (simulation).}
+  \caption{Single-LiDAR board-free, near-field high-aspect profile (simulation).}
   \label{tab:p15}
   \begin{tabular}{lc}
     \toprule
@@ -39,14 +42,14 @@ $t\in[0,45)\to$NE, $t\in[45,90)\to$SW.
     & NE obs [mm] & SW obs [mm] & rel rot [$^\circ$] & center-reg [mm] \\
     \midrule
     Frozen gate & 12.2 & 42.0 & 0.12 & 41 \\
-    Production @ \texttt{3fb7ddf} & 12.149 & 42.041 & --- & --- \\
+    Production pipeline & 12.149 & 42.041 & --- & --- \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsubsection{Honest NE/SW asymmetry}
-SW $\sim$42\,mm is \textbf{confirmed sector geometric anisotropy}, not estimator
-leak: per-sensor independent \texttt{ExtrinsicRefiner} scopes reproduce frozen values.
+SW $\sim$42\,mm is \textbf{confirmed sector geometric anisotropy}, not cross-sensor
+estimator leakage: independent per-sensor Stage-2 solves reproduce frozen values.
 Mechanism: SW sightline vs.\ body main tilt axis $\Rightarrow$ larger lever
 projection of $\mathbf{b}_{\mathrm{const}}$.
 \textbf{Paper obligation:} present both sectors; do not claim symmetric accuracy.
@@ -62,17 +65,13 @@ projection of $\mathbf{b}_{\mathrm{const}}$.
     \midrule
     Multi-layer (well observed) & \textbf{1.07357} ($\approx 1.074$) \\
     Coplanar (degenerate) & $\approx 0$ (numerical null) \\
-  \bottomrule
+    \bottomrule
   \end{tabular}
 \end{table}
 
-Distinct from aspect degeneracy (Sec.~\ref{sec:mechanism}): coplanar geometry
-yields rank deficiency in joint FIM; multi-layer flight restores observability.
+Distinct from aspect bias--translation collinearity (Sec.~\ref{sec:mechanism_identifiability}):
+coplanar geometry yields rank deficiency in joint FIM; multi-layer flight restores
+observability (Sec.~\ref{sec:mechanism_coplanar}).
 
-\subsection{Two-stage pipeline sanity (Config C)}
+\subsection{Two-stage pipeline sanity (sphere-target configuration)}
 Centimeter-level split 50/50; mean $|LW|$ translation 6.556\,mm (simulation).
-
-\subsection{Simulation sign-off status}
-Simulation phase \textbf{SEALED} after \texttt{33f9647} + \texttt{5f19793}.
-No further synthetic tuning; field data per blueprint
-\texttt{doc/multi\_lidar\_board\_free\_blueprint.md}.

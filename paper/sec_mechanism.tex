@@ -1,7 +1,7 @@
 \section{Board-Free Mechanism: Aspect-Dependent Bias on $u_B$}
 \label{sec:mechanism}
 
-This section is the oral core: \textbf{why} board-free calibration succeeds or fails.
+This section explains why board-free calibration succeeds or fails.
 
 \subsection{Bias as a vector field on relative bearing}
 At each body-cluster epoch $i$, define the empirical centroid bias
@@ -15,15 +15,80 @@ where $\hat{\mathbf{c}}^{\mathrm{emp}}$ is the centroid of \emph{visible} sample
 points (not the nominal box center plus noise).
 The relative bearing $u_B$ lives on the unit sphere; $\mathbf{b}_B$ is a
 \textbf{vector field} over flown aspects, not a constant offset.
-
 The observed-mean lever $\mathbf{p}_B$ estimates the \textbf{mean of this field}
 over the aspect distribution actually flown:
 \begin{equation}
   \mathbf{p}_B \approx \mathbb{E}_{u_B}\big[\mathbf{b}_B(u_B)\big].
+  \label{eq:pB_mean}
 \end{equation}
 
-\subsection{Diagnostic: \flightD{} correlation structure (simulation)}
-Wide $u_B$ sweep with decoupled orbit attitude (seed 13025):
+\subsection{Degeneracy as an identifiability statement}
+\label{sec:mechanism_identifiability}
+
+Each epoch contributes a world-frame bias driver
+\begin{equation}
+  \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}},
+  \label{eq:frame_bias}
+\end{equation}
+where $\mathbf{b}_{\mathrm{const}}$ captures the aspect-averaged body-frame bias
+structure and $R_{LW}$ maps LiDAR to world.
+Consider the mean over the calibration segment:
+\begin{equation}
+  \bar{\mathbf{v}}
+  = \frac{1}{N}\sum_{i=1}^{N} R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}}
+  \approx R_{LW}\,\bar{R}_{WB}\,\mathbf{b}_{\mathrm{const}}
+  \quad\text{when }\{R_{WB}(t_i)\}\text{ is concentrated.}
+  \label{eq:mean_v_concentrated}
+\end{equation}
+
+\textbf{Concentrated attitude $\Rightarrow$ structural non-identifiability.}
+When attitude is nearly constant ($R_{WB}(t_i)\approx\bar{R}_{WB}$), $\bar{\mathbf{v}}$
+is a \emph{fixed} world vector.
+In the centroid residual, a constant world offset is indistinguishable from a
+constant shift of the extrinsic translation $\mathbf{t}_{LW}$: both enter the
+observation model as an identical rigid translation of the projected body cloud.
+They are therefore collinear in the Fisher information matrix, creating a near-zero
+eigenvalue---this is not a noise-floor issue but a \textbf{structural non-identifiability}.
+No optimizer, including joint estimation of $\mathbf{p}_B$, can separate bias from
+translation from data that excite only this degenerate direction; the concentrated-aspect
+joint-opt path is a no-op at $\sim$211\,mm in simulation precisely because it cannot
+break this collinearity.
+
+\textbf{Diverse attitude $\Rightarrow$ identifiability restored.}
+When $\{R_{WB}(t_i)\}$ spans sufficient pitch and yaw, each epoch rotates
+$\mathbf{b}_{\mathrm{const}}$ into a different world direction.
+Summation averages the horizontal components of $R_{WB}\mathbf{b}_{\mathrm{const}}$
+($\sim$220\,mm $\to$ $\sim$51\,mm mean horizontal norm in simulation)---diversity in
+\emph{attitude}, not translation alone.
+A body-$Z$ component $\sim$19.5\,mm remains because yaw cannot average it; observed-mean
+$\mathbf{p}_B$ (Eq.~\ref{eq:pB_mean}) explicitly estimates and removes this residual.
+Attitude diversity is therefore not merely empirically helpful: it is what restores
+the identifiability of extrinsic translation in the presence of an aspect-dependent
+centroid bias.
+\textbf{Active 3D attitude excitation is a necessary condition for unbiased board-free
+calibration.}
+
+\subsection{Engineering consequence: aspect gate and guardrails}
+When excitation is insufficient, the system must not pretend $\mathbf{p}_B$ is
+identifiable.
+An aspect gate (yaw\_cv $\geq 0.65$, with a POI tidal-lock path) attempts
+observed-mean refinement only when attitude support is adequate; otherwise it falls
+back to centroid-only.
+A simulation ground-truth guard further applies observed-mean only if optimization cost
+and translation norm do not worsen relative to the centroid solution.
+On \flightY{} (low yaw\_cv $=0.32$), the gate closes and the estimate reverts to
+centroid-only at 165.0\,mm (simulation)---not a 1243\,mm blow-up.
+This is the operational embodiment of the identifiability argument: unidentifiable
+$\Rightarrow$ self-aware rollback.
+
+\subsection{Empirical confirmation (simulation)}
+\label{sec:mechanism_empirical}
+
+The identifiability picture above is supported by frozen simulation profiles
+(Sec.~\ref{sec:sim}).
+
+\subsubsection{Aspect--bias coupling (\flightD{})}
+Wide $u_B$ sweep with decoupled orbit attitude:
 
 \begin{table}[t]
   \centering
@@ -35,17 +100,14 @@ Wide $u_B$ sweep with decoupled orbit attitude (seed 13025):
     \midrule
     NE & 14.1 & 110 & +0.53 & $-$0.68 \\
     SW & 17.6 & 124 & $-$0.64 & +0.69 \\
-    P1.5 ref & --- & 22 & --- & --- \\
+    near-field ref. & --- & 22 & --- & --- \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimuth;
-range-only bias models are rejected.
+Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimuth.
 
-\subsection{$2\times2$ degeneracy: aspect $\times$ attitude}
-Board-free $\mathbf{p}_B$ identifiability closes on a $2\times2$ table:
-
+\subsubsection{$2\times2$ aspect--attitude table}
 \begin{table}[t]
   \centering
   \caption{Degeneracy table: $u_B$ sweep vs.\ POI-lock $\times$ $R_{WB}$ diversity (simulation).}
@@ -63,12 +125,10 @@ Board-free $\mathbf{p}_B$ identifiability closes on a $2\times2$ table:
     \bottomrule
   \end{tabular}
   \\[1mm]
-  {\footnotesize $^\dagger$SW 42\,mm = sector geometric anisotropy, not estimator leak (Sec.~\ref{sec:sim}).}
+  {\footnotesize $^\dagger$SW 42\,mm = sector geometric anisotropy (Sec.~\ref{sec:sim}).}
 \end{table}
 
-\subsubsection{Concentrated aspect: silent pollution}
-Phase~1.5 ablation (simulation):
-
+\subsubsection{Concentrated vs.\ diverse aspect}
 \begin{table}[t]
   \centering
   \caption{Concentrated vs.\ diverse aspect (simulation).}
@@ -81,29 +141,12 @@ Phase~1.5 ablation (simulation):
     Centroid-only, diverse & 63.5 & --- & partial yaw help \\
     Observed-mean $\times 3$, diverse & 18.5 & ON & $\mathbf{p}_B$ decorrelates \\
     Joint-opt $\mathbf{p}_B$, concentrated & $\sim$211 & --- & \textbf{no-op} \\
-    Observed-mean, diverse (prod.) & 20.4 & ON & target \\
+    Observed-mean, diverse & 20.4 & ON & production target \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\textbf{Joint $\mathbf{p}_B$ no-op:} under concentrated aspect, joint optimization
-cannot uncouple bias from $t_{LW}$; only aspect diversity plus the gate unlocks
-observed-mean.
-
-\subsubsection{Gate as mechanism: \flightY{} (simulation)}
-When yaw\_cv $= 0.32$ (below 0.65 threshold) and pitch is low, the aspect gate
-\textbf{closes}; observed-mean is not applied and the system falls back to
-centroid-only at 165.0\,mm---not a 1243\,mm blow-up.
-The gate embodies \emph{self-awareness}: insufficient excitation $\Rightarrow$ do not
-pretend $\mathbf{p}_B$ is identifiable.
-
-\subsection{Frame-wise quantitative core (simulation)}
-Per frame, the world-frame bias driver is
-\begin{equation}
-  \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}}.
-  \label{eq:frame_bias}
-\end{equation}
-
+\subsubsection{World-frame averaging under attitude diversity}
 \begin{table}[t]
   \centering
   \caption{World-frame mean bias norm vs.\ flight regime (simulation).}
@@ -113,35 +156,20 @@ Per frame, the world-frame bias driver is
     Regime & $\|\mathrm{mean}(\mathbf{v})\|_h$ [mm] & pitch std [$^\circ$] & yaw\_cv \\
     \midrule
     Concentrated aspect & $\sim$220 & $\sim$0 & $\sim$0 \\
-    Diverse (P1.5) & $\sim$51 & $\sim$16 & $\sim$0.78 \\
+    Diverse near-field & $\sim$51 & $\sim$16 & $\sim$0.78 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\begin{itemize}
-  \item \textbf{Horizontal 220$\to$51\,mm:} yaw sweeps average horizontal components
-    of $R_{WB}\mathbf{b}$---diversity in \emph{attitude}, not translation alone.
-  \item \textbf{Vertical $\sim$19.5\,mm residual:} body-$Z$ component of
-    $\mathbf{b}_{\mathrm{const}}$; yaw cannot average it; observed-mean
-    $\mathbf{p}_B$ removes it.
-\end{itemize}
-
-\textbf{Tidal lock audit (simulation):} P1.5 NearFieldHighAspect yaw$-$orbit std
+Tidal-lock audit (simulation): near-field high-aspect profile yaw$-$orbit std
 0.0$^\circ$ (locked); \flightD{} sector-0: 110.4$^\circ$ (not locked).
 
-\subsection{Necessary condition (conclusion sentence)}
-\emph{Active 3D attitude excitation (diverse pitch/yaw plus POI sector lock where
-needed) is a necessary condition for unbiased board-free extrinsic calibration---not
-a refinement.}
-
-\subsection{Mechanism figure (placeholder)}
 \begin{figure*}[t]
   \centering
   \fbox{\parbox{0.95\textwidth}{\centering\vspace{18mm}
     \TODO{Fig.~2 mechanism panel: (a) $u_B$ sphere vector field + Flight-D
     scatter $r\approx\pm 0.5$--$0.7$; (b) $2\times2$ degeneracy table;
-    (c) $\|\mathrm{mean}(\mathbf{v})\|$ curve 220$\to$51\,mm + 19.5\,mm vertical bar;
-    see figure\_table\_plan.md}\vspace{18mm}}}
+    (c) $\|\mathrm{mean}(\mathbf{v})\|$ curve 220$\to$51\,mm + 19.5\,mm vertical bar}\vspace{18mm}}}
   \caption{Board-free mechanism at a glance (placeholder layout).
   Panel (a): aspect-dependent bias on $u_B$.
   Panel (b): degeneracy table.
@@ -149,9 +177,16 @@ a refinement.}
   \label{fig:mechanism}
 \end{figure*}
 
-\subsection{Engineering guardrails}
-Production applies observed-mean only if Ceres cost $\leq$ centroid cost \textbf{and}
-$\|\mathrm{trans}\|_{\mathrm{obs}} \leq \|\mathrm{trans}\|_{\mathrm{cent}}$
-(simulation ground-truth guard in \texttt{phase15\_ablation\_common.hpp}).
-Aspect gate: yaw\_cv $\geq 0.65$ (+ POI path) $\Rightarrow$ try observed-mean $\times 3$;
-P1.5 opens at yaw\_cv $\approx 0.78$.
+\subsection{Relation to coplanar geometric degeneracy}
+\label{sec:mechanism_coplanar}
+
+Prior work on coplanar multi-LiDAR layouts reports a distinct near-zero Fisher
+direction: when sensors and the body path are nearly coplanar, joint FIM rank
+deficiency yields $\lambda_{\min}\approx 0$ versus $\lambda_{\min}\approx 1.074$
+under multi-layer flight (simulation; Sec.~\ref{sec:sim}).
+\textbf{That degeneracy is geometric;} the aspect-concentration degeneracy of
+Sec.~\ref{sec:mechanism_identifiability} arises from \textbf{target bias structure}
+(bias collinear with translation under fixed attitude).
+The $2\times2$ table (Table~\ref{tab:degeneracy_2x2}) diagnoses the latter;
+the $\lambda_{\min}$ audit diagnoses the former.
+Both must be avoided in flight design, but they are independent failure modes.

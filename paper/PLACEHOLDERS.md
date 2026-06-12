@@ -9,11 +9,15 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 
 ---
 
-## `sec_intro.tex`
+## `sec_related.tex` (citation placeholders)
 
-| Location | Wait for | Campaign | Fills |
-|----------|----------|----------|-------|
-| Contributions item 5 | All field campaigns summary | A–D | Intro contribution bullet |
+| Location | Wait for | Fills |
+|----------|----------|-------|
+| Roadside V2X | Survey or target paper bibkey | `\TODO{cite: roadside V2X multi-LiDAR calibration}` |
+| Target survey | Survey bibkey | `\TODO{cite: target-based LiDAR extrinsic calibration survey}` |
+| UAV RTK | UAV calib paper bibkey | `\TODO{cite: UAV RTK-assisted sensor calibration}` |
+| TrajMatch | Trajectory-matching paper | `\TODO{cite: trajectory-matching extrinsic calibration}` |
+| Coplanar FIM | Anonymous Paper I bibkey | `\TODO{cite: prior coplanar multi-LiDAR FIM degeneracy}` |
 
 ## `sec_framework.tex`
 
@@ -46,7 +50,7 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 | `tab:field_relext` center-reg | Coherent perturbation residual | **D** | Table 2 |
 | RQ1 | Per-epoch bias vs $u_B$ scatter data | **B** | Fig. 4 / mechanism transfer |
 | RQ2 | Table 1 all cells | **A** | Board-free accuracy claim |
-| RQ3 | Table 2 all cells | **D** | §7.2 field test |
+| RQ3 | Table 2 all cells | **D** | Relative extrinsic field test |
 | RQ4 | POI execution + yaw_cv stats | **B** | Feasibility paragraph |
 | Fig. `field_layout` | Layout diagram photo/CAD | **A** | Fig. 3 |
 | Fig. `field_bias` | Real scatter plot | **B** | Fig. 4 |
@@ -54,9 +58,9 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 ## Campaign definitions
 
 - **Campaign A — accuracy sign-off:** one intersection deployment, sphere survey, single board-free solve, Δ metrics.
-- **Campaign B — mechanism transfer:** repeat flights with logged attitude; export $u_B$–bias for comparison to Flight 丁/P1.5.
+- **Campaign B — mechanism transfer:** repeat flights with logged attitude; export $u_B$–bias for comparison to \flightD{} / near-field profile.
 - **Campaign C — truth chain:** total-station sphere coordinates + uncertainty budget (feeds A, not a separate table).
-- **Campaign D — §7.2 field test:** intentional or natural RTK coherent segment; estimate rel/abs covariance ratio vs simulation.
+- **Campaign D — relative extrinsic field test:** intentional or natural RTK coherent segment; estimate rel/abs covariance ratio vs simulation.
 
 ## Sphere-target red line
 

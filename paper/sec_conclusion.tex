@@ -3,11 +3,13 @@
 
 We presented a separable RTK-anchored framework for board-free multi-LiDAR extrinsic
 calibration at intersections with negligible FOV overlap.
-The central mechanism is an aspect-dependent body-centroid bias vector field on $u_B$:
-under concentrated aspect it degenerates with translation and silently pollutes
-estimates ($\sim$211\,mm in simulation); active 3D attitude excitation breaks the
-degeneracy and restores $\sim$20\,mm accuracy (simulation).
-An aspect gate provides engineering self-awareness when excitation is insufficient.
+The central result is an identifiability argument: aspect-dependent body-centroid bias
+becomes collinear with extrinsic translation under concentrated attitude, producing
+structural non-identifiability ($\sim$211\,mm in simulation) that no joint optimizer
+can break; active 3D attitude excitation restores identifiability and $\sim$20\,mm
+accuracy (simulation).
+An aspect gate operationalizes this insight by rolling back when excitation is
+insufficient.
 Relative extrinsic uncertainty under coherent RTK bias can be tighter than absolute
 (0.166$\times$, simulation, scoped assumption); white noise composes at 3.101$\times$.
 
@@ -22,7 +24,6 @@ Sec.~\ref{sec:field} and remains to be filled.
   \item \textbf{Unified target framework:} a future T-ITS line may treat sphere/board
     targets as a \emph{calibration method} for depot-style setups---orthogonal to
     this paper, where spheres are evaluation rulers only.
-  \item \textbf{Online FIM / adaptive planning:} reuse of
-    \texttt{CalibrationEstimator} across missions must address deferred
-    \texttt{ClearProblem} leak (known issue @ \texttt{3fb7ddf}).
+  \item \textbf{Online FIM / adaptive planning:} estimator reuse across missions
+    must address session-state teardown before online observability auditing.
 \end{itemize}

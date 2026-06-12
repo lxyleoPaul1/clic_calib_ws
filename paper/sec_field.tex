@@ -15,7 +15,7 @@ board-free error; they are \textbf{not} a calibration fallback.
   \item \textbf{Platform:} DJI M3E + RTK + PSDK LiDAR @ 10\,Hz.
     \TODO{field campaign A: firmware versions, antenna lever-arm survey}
   \item \textbf{Flight:} POI tidal-lock sectors per simulation \flightW{};
-    attitude diversity per P1.5 recipe.
+    attitude diversity per near-field high-aspect recipe.
     \TODO{field campaign B: flight logs, POI sector timing, weather}
   \item \textbf{Ground truth:} retroreflective sphere anchors surveyed by total station
     (independent of board-free pipeline).
@@ -31,7 +31,8 @@ On the \textbf{same} flight segment:
 \end{enumerate}
 Spheres measure error; they do not replace board-free.
 
-\subsection{Table~\ref{tab:field_boardfree}: board-free vs.\ sphere truth}
+\subsection{Results (placeholder)}
+
 \begin{table}[t]
   \centering
   \caption{Field board-free accuracy vs.\ sphere-anchor ground truth.}
@@ -49,10 +50,9 @@ Spheres measure error; they do not replace board-free.
   \end{tabular}
 \end{table}
 
-\subsection{Table~\ref{tab:field_relext}: coherent-bias residual (total-station check)}
 \begin{table}[t]
   \centering
-  \caption{Field test of \S7.2 coherent-bias cancellation (vs.\ simulation 0.166$\times$).}
+  \caption{Field test of coherent-bias cancellation in relative extrinsics (vs.\ simulation 0.166$\times$).}
   \label{tab:field_relext}
   \begin{tabular}{lcc}
     \toprule
@@ -80,7 +80,6 @@ Spheres measure error; they do not replace board-free.
     \TODO{field campaign B: POI execution notes + gate yaw\_cv statistics}
 \end{enumerate}
 
-\subsection{Field figures (placeholder)}
 \begin{figure}[t]
   \centering
   \fbox{\parbox{0.92\columnwidth}{\centering\vspace{12mm}

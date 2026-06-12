@@ -1,4 +1,4 @@
-\section{Relative Extrinsic Uncertainty (\S7.2)}
+\section{Relative Extrinsic Uncertainty}
 \label{sec:relext}
 
 Absolute extrinsics $\hat{T}_{L_\ell W}$ inherit RTK position uncertainty.
@@ -6,14 +6,14 @@ For long-baseline diagonal layouts, the \textbf{relative} transform
 $\hat{T}_{L_{\mathrm{SW}}\leftarrow L_{\mathrm{NE}}}$ is often the quantity of
 interest for fusion.
 We analyze how RTK error modes propagate through independent Stage-2 solves
-(simulation, sealed @ commit \texttt{33f9647}).
+(simulation).
 
 \subsection{Composition and metrics}
 Relative transform is composed post hoc (Sec.~\ref{sec:framework}).
 We report:
 \begin{itemize}
   \item \textbf{center-reg (obs)} --- headline metric, rotation-dominated, no 70.7\,m
-    lever amplification (40.9\,mm @ rep, simulation);
+    lever amplification (40.9\,mm, simulation);
   \item rel-trans (obs) --- deprecated lever metric (49.0\,mm, simulation).
 \end{itemize}
 
@@ -60,9 +60,9 @@ Monte Carlo ($N{=}20$, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
 Brief temporal overlap can tighten relative UQ without spatial FOV overlap.
 
 \subsection{Scope boundary (mandatory)}
-The 0.166$\times$ ratio depends on injected \textbf{rigid global bias}
-(\texttt{RtkMcInjectionMode::kCoherentSystemBiasOnly}, $\sigma_h{=}50$\,mm,
-$\sigma_v{=}100$\,mm, one draw per epoch block).
+The 0.166$\times$ ratio depends on a \textbf{rigid global bias injection}
+($\sigma_h{=}50$\,mm, $\sigma_v{=}100$\,mm, one draw applied identically to every
+epoch in a segment).
 Real RTK includes drift, colored noise, and lever-arm coupling---\textbf{not} perfect
 common-mode.
 \textbf{Do not cite 0.166$\times$ as a field guarantee.}
