@@ -1,6 +1,7 @@
 #include <clic_calib/estimator/multi_lidar_body_calibration.h>
 
 #include <clic_calib/estimator/relative_extrinsic.h>
+#include <clic_calib/target/body_centroid_analysis.h>
 
 namespace clic_calib {
 
@@ -16,12 +17,6 @@ MultiLidarBodyCalibrationResult CalibrateMultiLidarBodyGated(
     return out;
   }
 
-  const Stage1TrajectoryInput s1_in =
-      Stage1TrajectoryInput::FromRtkAttitudeStreams(shared_mission.rtk,
-                                                    shared_mission.attitude);
-  const Stage1TrajectoryResult s1 =
-      Stage1TrajectoryFitter::Fit(s1_in, levers, base_cfg.stage1);
-
   std::vector<int> ids;
   ids.reserve(sensors.size());
   for (const auto& spec : sensors) {
@@ -29,15 +24,23 @@ MultiLidarBodyCalibrationResult CalibrateMultiLidarBodyGated(
     per_in.body_obs = spec.body_obs;
     per_in.gt_T_LW = spec.gt_T_LW;
 
-    PerSensorBodyCalibResult psr;
-    if (s1.trajectory) {
-      psr.u_B_azimuth_std_deg = ComputeUBAzimuthStdDeg(
-          *s1.trajectory, per_in.nominal_t_d_L_s, spec.lidar_post_W,
+    const std::vector<double>* scales = spec.temporal_sqrt_info_scales;
+    if (scales == nullptr) {
+      scales = temporal_sqrt_info_scales;
+    }
+
+    double u_B_azimuth_std_deg = -1.0;
+    if (spec.aspect_trajectory != nullptr) {
+      u_B_azimuth_std_deg = ComputeUBAzimuthStdDeg(
+          *spec.aspect_trajectory, per_in.nominal_t_d_L_s, spec.lidar_post_W,
           spec.body_obs);
     }
+
+    PerSensorBodyCalibResult psr;
+    psr.u_B_azimuth_std_deg = u_B_azimuth_std_deg;
     psr.calib = CalibrateBodyGatedObservedMean(
         per_in, levers, noise, base_cfg, observed_mean_iters, gate,
-        psr.u_B_azimuth_std_deg, temporal_sqrt_info_scales);
+        u_B_azimuth_std_deg, scales);
     out.per_sensor[spec.sensor_id] = psr;
     ids.push_back(spec.sensor_id);
   }

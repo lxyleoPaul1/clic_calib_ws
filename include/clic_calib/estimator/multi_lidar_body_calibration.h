@@ -1,6 +1,7 @@
 #pragma once
 
 #include <clic_calib/estimator/body_gated_calibration.h>
+#include <clic_calib/spline/trajectory.h>
 #include <clic_calib/estimator/observed_mean_gate.h>
 #include <clic_calib/utils/lever_arm.h>
 #include <clic_calib/utils/noise_model.h>
@@ -21,6 +22,9 @@ struct LidarBodyCalibrationSpec {
   std::vector<BodyClusterObservation> body_obs;
   Eigen::Vector3d lidar_post_W = Eigen::Vector3d::Zero();
   const SE3d* gt_T_LW = nullptr;
+  const std::vector<double>* temporal_sqrt_info_scales = nullptr;
+  /** Trajectory for u_B aspect gate (sim: gt traj; field: shared Stage-1). */
+  const BodyTrajectory* aspect_trajectory = nullptr;
 };
 
 struct PerSensorBodyCalibResult {

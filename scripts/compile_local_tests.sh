@@ -186,6 +186,13 @@ build_one test_phase3_dual_lidar_phase_b \
   "${ROOT}/test/test_phase3_dual_lidar_phase_b.cpp" \
   "${PHASE3_EXTRA[@]}"
 
+build_one test_multi_lidar_body_calibration \
+  "${ROOT}/test/test_multi_lidar_body_calibration.cpp" \
+  "${EST_SRCS[@]}" \
+  "${ROOT}/src/clic_calib/target/drone_model_registration.cpp" \
+  "${ROOT}/src/clic_calib/config/body_model_config.cpp" \
+  ${OPENCV_LIBS}
+
 build_one test_phase15_main_table \
   "${ROOT}/test/test_phase15_main_table.cpp" \
   "${PHASE3_EXTRA[@]}" \
