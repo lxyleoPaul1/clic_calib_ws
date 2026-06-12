@@ -96,12 +96,17 @@ t∈[0,45)→NE, t∈[45,90)→SW. **NE-only** `poi_sector0_attitude_scale=0.35`
 | **0.5 Hz** | **12.2** | **42.0**‡ | **0.12** | **41** | ~74 (0.06°×70.7 m) |
 | 10 Hz (PW + NE roll) | 58.8 | 117.7† | 0.18 | 134 | — |
 
-‡ **known synthetic sector artifact, exempted** @ sim gate 42 mm (not raised to 43).
+‡ **Sector geometric anisotropy — confirmed @ Phase 1 (`3fb7ddf`), not leak pollution.**
+Production `CalibrateMultiLidarBodyGated` (per-sensor independent `ExtrinsicRefiner`
+scope, no shared `CalibrationEstimator` FIM reuse) reproduces **NE 12.149 / SW 42.041 mm**
+@ seed 13025 — bit-consistent with pre-Phase-1 frozen values. **Do not chase SW→12 mm in
+code**; paper must present asymmetry + mechanism (SW sightline vs body tilt axis → larger
+`b_const` lever projection). Sim gate still exempts SW @ 42 mm threshold.
 † SW 10 Hz: observed-mean fallback (sector coupling via Stage-1).
 
-**Sector anisotropy:** SW obs ~42 mm with gate ON, `p_B` applied; per-frame audit
+**Sector anisotropy audit:** SW obs ~42 mm with gate ON, `p_B` applied; per-frame audit
 u_B 3.58°→1.26° under both-flag does not shrink obs → synthesis limit.
-**Commit:** `a78dce7` audit, `72050cc` production config.
+**Commits:** `a78dce7` audit, `72050cc` production config, `3fb7ddf` no-leak re-verify.
 
 **Test:** `test_phase3_dual_lidar_experiment_a`.
 
@@ -202,6 +207,41 @@ assumption (simulation)*.
 
 ---
 
+## Known issues (Phase 1 @ `3fb7ddf`)
+
+### 1. 戊 SW ≈ 42 mm — true sector geometry, not estimator leak
+
+**Finding:** After Phase 0 gflags guard + Phase 1 per-sensor independent Stage-2,
+`test_multi_lidar_body_calibration` and `CalibrateMultiLidarBodyGated` reproduce
+**NE 12.149 mm / SW 42.041 mm** — matching frozen §⑥ and isolation gate. The earlier
+hypothesis that SW 42 mm might be `CalibrationEstimator::Impl::ClearProblem()` leak
+from serial in-process solves is **ruled out** for the production calibration path
+(which never reuses `CalibrationEstimator` for body Stage-2).
+
+**Interpretation:** Diagonal dual-LiDAR deployment has intrinsic NE/SW asymmetry:
+SW post geometry + POI sector coupling yields a larger effective lever projection of
+the aspect-dependent bias field `b_const`. This is a **field expectation** for corner
+posts at different heights/ranges, not a bug to code away.
+
+**Action:** Document in paper + `doc/board_free_mechanism.md`; keep frozen 12.15/42.04
+assertions; do not tune geometry to force symmetry.
+
+### 2. `cost.release()` in `CalibrationEstimator::Impl::ClearProblem()` — deferred
+
+**Trigger:** Reusing the **same** `CalibrationEstimator` instance for a second FIM /
+`solve()` in one process (λ_min collapses to ~0.02–0.003 garbage).
+
+**Phase 1 mitigation:** Multi-LiDAR body calibration uses **independent**
+`CalibrateBodyGatedObservedMean` / `ExtrinsicRefiner` scopes per sensor — **does not
+hit this path**. Observability suite uses **fork-per-test** isolation (`1.07357`).
+
+**Deferred:** Online FIM / adaptive planning (Phase 5 direction) that reuses one
+estimator across missions **must** fix destructor order / true cost teardown, or
+always allocate fresh estimator instances. **Do not** reintroduce `reset_session` /
+ephemeral FIM scope workarounds that broke the `f03c399` baseline.
+
+---
+
 ## Simulation phase status
 
 **SEALED** after `33f9647` + **`5f19793`**. No further synthetic tuning. Next step:
@@ -219,4 +259,6 @@ assumption (simulation)*.
 | Dual alignment parity | same test (`EXPECT_NEAR` dual vs single) |
 | 乙 165 mm rollback | same test (`EXPECT_FALSE` gate, ~165 mm) |
 | Sim sign-off 42 mm + SW exempt | same test sign-off block |
+| Multi-LiDAR no-leak production | `test_multi_lidar_body_calibration` @ `3fb7ddf` |
+| Isolation 5/5 + λ_min 1.07357 | `scripts/verify_frozen_baseline_isolation.sh` @ `f03c399`+ |
 | Phase B (a)(b) | `test_phase3_dual_lidar_phase_b` |
