@@ -1,0 +1,157 @@
+\section{Board-Free Mechanism: Aspect-Dependent Bias on $u_B$}
+\label{sec:mechanism}
+
+This section is the oral core: \textbf{why} board-free calibration succeeds or fails.
+
+\subsection{Bias as a vector field on relative bearing}
+At each body-cluster epoch $i$, define the empirical centroid bias
+\begin{equation}
+  \mathbf{b}_{B,i}
+  = \hat{\mathbf{c}}_{B,i}^{\mathrm{emp}}
+  - \mathbf{L}_{B\to\mathrm{body}}^{\mathrm{nom}},
+  \label{eq:bias_field}
+\end{equation}
+where $\hat{\mathbf{c}}^{\mathrm{emp}}$ is the centroid of \emph{visible} sampled
+points (not the nominal box center plus noise).
+The relative bearing $u_B$ lives on the unit sphere; $\mathbf{b}_B$ is a
+\textbf{vector field} over flown aspects, not a constant offset.
+
+The observed-mean lever $\mathbf{p}_B$ estimates the \textbf{mean of this field}
+over the aspect distribution actually flown:
+\begin{equation}
+  \mathbf{p}_B \approx \mathbb{E}_{u_B}\big[\mathbf{b}_B(u_B)\big].
+\end{equation}
+
+\subsection{Diagnostic: \flightD{} correlation structure (simulation)}
+Wide $u_B$ sweep with decoupled orbit attitude (seed 13025):
+
+\begin{table}[t]
+  \centering
+  \caption{Aspect--bias coupling on \flightD{} (simulation).}
+  \label{tab:ding_correlation}
+  \begin{tabular}{lcccc}
+    \toprule
+    Sensor & $u_B$ az std [$^\circ$] & varying RMS [mm] & $r(u_B,\mathrm{bias}_x)$ & $r(u_B,\mathrm{bias}_y)$ \\
+    \midrule
+    NE & 14.1 & 110 & +0.53 & $-$0.68 \\
+    SW & 17.6 & 124 & $-$0.64 & +0.69 \\
+    P1.5 ref & --- & 22 & --- & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimuth;
+range-only bias models are rejected.
+
+\subsection{$2\times2$ degeneracy: aspect $\times$ attitude}
+Board-free $\mathbf{p}_B$ identifiability closes on a $2\times2$ table:
+
+\begin{table}[t]
+  \centering
+  \caption{Degeneracy table: $u_B$ sweep vs.\ POI-lock $\times$ $R_{WB}$ diversity (simulation).}
+  \label{tab:degeneracy_2x2}
+  \begin{tabular}{p{22mm}p{32mm}p{32mm}}
+    \toprule
+    & \textbf{$R_{WB}$ sweeps} & \textbf{$R_{WB}$ near-locked} \\
+    \midrule
+    \textbf{$u_B$ sweeps} (\flightD{})
+    & NE obs 60.3 / SW 89.9\,mm; rel 311\,mm
+    & --- \\
+    \textbf{$u_B$ POI-locked} (\flightW{})
+    & NE 12.2 / SW 42.0\,mm$^\dagger$; rel rot 0.12$^\circ$
+    & \flightJ{} gate OFF: 31.5\,mm \\
+    \bottomrule
+  \end{tabular}
+  \\[1mm]
+  {\footnotesize $^\dagger$SW 42\,mm = sector geometric anisotropy, not estimator leak (Sec.~\ref{sec:sim}).}
+\end{table}
+
+\subsubsection{Concentrated aspect: silent pollution}
+Phase~1.5 ablation (simulation):
+
+\begin{table}[t]
+  \centering
+  \caption{Concentrated vs.\ diverse aspect (simulation).}
+  \label{tab:concentrated}
+  \begin{tabular}{lccc}
+    \toprule
+    Path & $\|$trans$\|$ [mm] & Gate & Note \\
+    \midrule
+    Centroid-only, concentrated & 211.4 & --- & bias $\parallel t_{LW}$ \\
+    Centroid-only, diverse & 63.5 & --- & partial yaw help \\
+    Observed-mean $\times 3$, diverse & 18.5 & ON & $\mathbf{p}_B$ decorrelates \\
+    Joint-opt $\mathbf{p}_B$, concentrated & $\sim$211 & --- & \textbf{no-op} \\
+    Observed-mean, diverse (prod.) & 20.4 & ON & target \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Joint $\mathbf{p}_B$ no-op:} under concentrated aspect, joint optimization
+cannot uncouple bias from $t_{LW}$; only aspect diversity plus the gate unlocks
+observed-mean.
+
+\subsubsection{Gate as mechanism: \flightY{} (simulation)}
+When yaw\_cv $= 0.32$ (below 0.65 threshold) and pitch is low, the aspect gate
+\textbf{closes}; observed-mean is not applied and the system falls back to
+centroid-only at 165.0\,mm---not a 1243\,mm blow-up.
+The gate embodies \emph{self-awareness}: insufficient excitation $\Rightarrow$ do not
+pretend $\mathbf{p}_B$ is identifiable.
+
+\subsection{Frame-wise quantitative core (simulation)}
+Per frame, the world-frame bias driver is
+\begin{equation}
+  \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}}.
+  \label{eq:frame_bias}
+\end{equation}
+
+\begin{table}[t]
+  \centering
+  \caption{World-frame mean bias norm vs.\ flight regime (simulation).}
+  \label{tab:frame_norm}
+  \begin{tabular}{lccc}
+    \toprule
+    Regime & $\|\mathrm{mean}(\mathbf{v})\|_h$ [mm] & pitch std [$^\circ$] & yaw\_cv \\
+    \midrule
+    Concentrated aspect & $\sim$220 & $\sim$0 & $\sim$0 \\
+    Diverse (P1.5) & $\sim$51 & $\sim$16 & $\sim$0.78 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{Horizontal 220$\to$51\,mm:} yaw sweeps average horizontal components
+    of $R_{WB}\mathbf{b}$---diversity in \emph{attitude}, not translation alone.
+  \item \textbf{Vertical $\sim$19.5\,mm residual:} body-$Z$ component of
+    $\mathbf{b}_{\mathrm{const}}$; yaw cannot average it; observed-mean
+    $\mathbf{p}_B$ removes it.
+\end{itemize}
+
+\textbf{Tidal lock audit (simulation):} P1.5 NearFieldHighAspect yaw$-$orbit std
+0.0$^\circ$ (locked); \flightD{} sector-0: 110.4$^\circ$ (not locked).
+
+\subsection{Necessary condition (conclusion sentence)}
+\emph{Active 3D attitude excitation (diverse pitch/yaw plus POI sector lock where
+needed) is a necessary condition for unbiased board-free extrinsic calibration---not
+a refinement.}
+
+\subsection{Mechanism figure (placeholder)}
+\begin{figure*}[t]
+  \centering
+  \fbox{\parbox{0.95\textwidth}{\centering\vspace{18mm}
+    \TODO{Fig.~2 mechanism panel: (a) $u_B$ sphere vector field + Flight-D
+    scatter $r\approx\pm 0.5$--$0.7$; (b) $2\times2$ degeneracy table;
+    (c) $\|\mathrm{mean}(\mathbf{v})\|$ curve 220$\to$51\,mm + 19.5\,mm vertical bar;
+    see figure\_table\_plan.md}\vspace{18mm}}}
+  \caption{Board-free mechanism at a glance (placeholder layout).
+  Panel (a): aspect-dependent bias on $u_B$.
+  Panel (b): degeneracy table.
+  Panel (c): frame-wise world-frame averaging under attitude diversity.}
+  \label{fig:mechanism}
+\end{figure*}
+
+\subsection{Engineering guardrails}
+Production applies observed-mean only if Ceres cost $\leq$ centroid cost \textbf{and}
+$\|\mathrm{trans}\|_{\mathrm{obs}} \leq \|\mathrm{trans}\|_{\mathrm{cent}}$
+(simulation ground-truth guard in \texttt{phase15\_ablation\_common.hpp}).
+Aspect gate: yaw\_cv $\geq 0.65$ (+ POI path) $\Rightarrow$ try observed-mean $\times 3$;
+P1.5 opens at yaw\_cv $\approx 0.78$.

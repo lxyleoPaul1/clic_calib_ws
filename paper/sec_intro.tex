@@ -1,0 +1,56 @@
+% DRAFT — 待与作者打磨 oral 开篇张力，勿直接定稿
+
+\section{Introduction}
+\label{sec:intro}
+
+Intersection-scale cooperative perception requires multiple roadside LiDARs whose
+fields of view barely overlap, if at all.
+Classical target-based or hand-eye pipelines assume shared views, calibration boards,
+or dedicated calibration yards---assumptions that fail at urban corners where sensors
+sit on diagonal posts tens of meters apart.
+UAV-RTK trajectories offer a natural anchor: a single flying platform carries the
+body frame through the combined visibility of all sensors, enabling \emph{board-free}
+calibration from vehicle point clouds alone.
+
+The counter-intuitive finding of this work is that board-free accuracy is dominated
+not by LiDAR range noise or RTK centimeter fixes, but by \textbf{how diversely the UAV
+attitude is excited during the calibration flight}.
+The empirical body centroid is not a fixed offset: it is an \emph{aspect-dependent bias
+vector field} on the relative bearing $u_B$.
+When aspect is concentrated, this field aligns with extrinsic translation and
+\emph{silently} corrupts calibration---joint optimization of the lever arm cannot
+remove it.
+Only active 3D attitude excitation (sector POI tidal-lock plus pitch/yaw diversity)
+decorrelates the field so that its world-frame mean can be estimated and removed,
+recovering sub-decimeter extrinsics in simulation.
+
+\textbf{Memory line:} \emph{board-free calibration accuracy is determined by flight
+attitude diversity, not by the sensor.}
+
+\subsection{Contributions}
+We contribute:
+\begin{enumerate}
+  \item A \textbf{separable two-stage framework}: Stage-1 fits a continuous-time
+    RTK-anchored trajectory $T_{WB}(t)$; Stage-2 freezes the trajectory and calibrates
+    each LiDAR extrinsic independently---enabling diagonal multi-LiDAR deployment with
+    zero FOV overlap.
+  \item A \textbf{mechanistic account of board-free identifiability}: the $u_B$
+    bias vector field, a $2\times2$ degeneracy table (aspect $\times$ attitude), and
+    the conclusion that \textbf{active 3D attitude excitation is a necessary condition}
+    for unbiased board-free calibration (simulation).
+  \item A \textbf{relative-extrinsic covariance analysis} (\S7.2): under a coherent
+    systematic RTK bias assumption, $\mathrm{Cov}(T_{\mathrm{rel}})$ scales as
+    0.166$\times$ absolute covariance; white per-epoch noise composes at 3.101$\times$
+    (simulation), with explicit scope boundaries for field transfer.
+  \item \textbf{Prais--Winsten RTK whitening} for high-rate Stage-1 trajectory fitting,
+    avoiding uniform covariance inflation that destroys low-frequency observability.
+  \item \textbf{Field validation} on diagonal dual-Ruby intersection data:
+    \TODO{field campaign A--D: board-free vs sphere-anchor, coherent-bias residual,
+    POI flight feasibility --- see Sec.~\ref{sec:field}}.
+\end{enumerate}
+
+\textbf{Sphere targets (scope boundary).}
+Throughout this paper, retroreflective sphere targets appear \emph{only} as an
+independent ground-truth ruler to score board-free error in field experiments.
+They are \textbf{not} a fallback calibration method; board-free remains the sole
+calibration pipeline.

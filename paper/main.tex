@@ -1,0 +1,70 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+
+% Visible placeholder macro for field data
+\newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+
+% Simulation flight labels (repo: \u4e01/\u620a/\u7532/\u4e59)
+\newcommand{\flightD}{Flight-D}
+\newcommand{\flightW}{Flight-W}
+\newcommand{\flightJ}{Flight-J}
+\newcommand{\flightY}{Flight-Y}
+
+\begin{document}
+
+\title{Board-Free Multi-LiDAR Extrinsic Calibration for UAV-Anchored Roadside Sensing:\\
+Active Attitude Excitation as a Necessary Condition}
+
+\author{Anonymous Authors}
+
+\maketitle
+
+\begin{abstract}
+Roadside and V2X deployments increasingly rely on multiple LiDARs with little or no
+field-of-view overlap, anchored by UAV RTK trajectories rather than calibration targets.
+We show that board-free body-centric calibration is governed not only by sensor geometry
+but by \emph{flight attitude diversity}: the empirical body centroid forms an
+aspect-dependent bias vector field on the relative bearing sphere $u_B$.
+Under concentrated aspect this field degenerates with extrinsic translation and silently
+pollutes estimates ($\sim$211\,mm in simulation); active 3D attitude excitation
+(POI tidal-lock flight) breaks the degeneracy and restores decimeter-level accuracy
+($\sim$20\,mm in simulation).
+We present a separable two-stage estimator with per-LiDAR independent Stage-2 solves,
+an aspect gate with centroid fallback, and a relative-extrinsic covariance analysis under
+coherent RTK bias (0.166$\times$ in simulation).
+Field validation on diagonal dual-Ruby intersection data is structured but pending.
+\end{abstract}
+
+\begin{IEEEkeywords}
+LiDAR calibration, extrinsic calibration, UAV, RTK, board-free calibration, multi-sensor systems
+\end{IEEEkeywords}
+
+\input{sec_intro}
+\input{sec_related}
+\input{sec_framework}
+\input{sec_mechanism}
+\input{sec_relext}
+\input{sec_pw}
+\input{sec_sim}
+\input{sec_field}
+\input{sec_conclusion}
+
+\section*{Acknowledgment}
+% Omitted for double-blind review.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

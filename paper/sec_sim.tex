@@ -1,0 +1,78 @@
+\section{Simulation Validation}
+\label{sec:sim}
+
+All numbers in this section are \textbf{(simulation)} unless noted.
+Reproduce: \texttt{scripts/verify\_frozen\_baseline\_isolation.sh} @ commits
+\texttt{f03c399} / \texttt{3fb7ddf} / \texttt{7f5c27c}; seed 13025; noise
+\texttt{config/noise\_model.yaml}.
+
+\subsection{Single-LiDAR Phase~1.5 (NearFieldHighAspect)}
+\begin{table}[t]
+  \centering
+  \caption{P1.5 single-LiDAR board-free (simulation).}
+  \label{tab:p15}
+  \begin{tabular}{lc}
+    \toprule
+    Metric & Value [mm] \\
+    \midrule
+    Centroid-only $\|$trans$\|$ & 63.5 \\
+    Observed-mean $\times 3$ & 18.5 \\
+    Joint-opt reference & 20.4 \\
+    GT varying RMS (bias field) & $\sim$22 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Diverse aspect (yaw\_cv $\approx 0.78$, pitch\_std $\approx 16^\circ$) enables
+$\mathbf{p}_B$; centroid floor $\sim$64\,mm, observed-mean $\sim$18--20\,mm.
+
+\subsection{Diagonal dual-LiDAR @ \flightW{}}
+Geometry: NE/SW posts at ($\pm$25, $\pm$25)\,m, baseline 70.7\,m, POI serial lock
+$t\in[0,45)\to$NE, $t\in[45,90)\to$SW.
+
+\begin{table}[t]
+  \centering
+  \caption{Dual-LiDAR @ 0.5\,Hz (simulation).}
+  \label{tab:wu_dual}
+  \begin{tabular}{lcccc}
+    \toprule
+    & NE obs [mm] & SW obs [mm] & rel rot [$^\circ$] & center-reg [mm] \\
+    \midrule
+    Frozen gate & 12.2 & 42.0 & 0.12 & 41 \\
+    Production @ \texttt{3fb7ddf} & 12.149 & 42.041 & --- & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Honest NE/SW asymmetry}
+SW $\sim$42\,mm is \textbf{confirmed sector geometric anisotropy}, not estimator
+leak: per-sensor independent \texttt{ExtrinsicRefiner} scopes reproduce frozen values.
+Mechanism: SW sightline vs.\ body main tilt axis $\Rightarrow$ larger lever
+projection of $\mathbf{b}_{\mathrm{const}}$.
+\textbf{Paper obligation:} present both sectors; do not claim symmetric accuracy.
+
+\subsection{Observability gate (joint FIM $\lambda_{\min}$)}
+\begin{table}[t]
+  \centering
+  \caption{Coplanar ablation vs.\ multi-layer (simulation).}
+  \label{tab:lambda}
+  \begin{tabular}{lc}
+    \toprule
+    Configuration & $\lambda_{\min}$ \\
+    \midrule
+    Multi-layer (well observed) & \textbf{1.07357} ($\approx 1.074$) \\
+    Coplanar (degenerate) & $\approx 0$ (numerical null) \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+Distinct from aspect degeneracy (Sec.~\ref{sec:mechanism}): coplanar geometry
+yields rank deficiency in joint FIM; multi-layer flight restores observability.
+
+\subsection{Two-stage pipeline sanity (Config C)}
+Centimeter-level split 50/50; mean $|LW|$ translation 6.556\,mm (simulation).
+
+\subsection{Simulation sign-off status}
+Simulation phase \textbf{SEALED} after \texttt{33f9647} + \texttt{5f19793}.
+No further synthetic tuning; field data per blueprint
+\texttt{doc/multi\_lidar\_board\_free\_blueprint.md}.

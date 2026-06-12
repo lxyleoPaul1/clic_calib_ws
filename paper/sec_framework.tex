@@ -1,0 +1,71 @@
+\section{Separable Two-Stage Calibration Framework}
+\label{sec:framework}
+
+\subsection{Problem setup}
+Consider $L$ LiDARs rigidly mounted on a UAV body frame $\{B\}$.
+Each LiDAR $\ell$ has unknown extrinsic $T_{L_\ell B}\in SE(3)$.
+During a calibration flight, RTK fixes the world pose trajectory
+$T_{WB}(t)$ and each LiDAR observes body-surface points.
+We seek $\{T_{L_\ell B}\}$ and a consistent $T_{WB}(t)$ without calibration boards.
+
+\subsection{Stage-1: RTK-anchored trajectory fitting}
+Stage-1 estimates a continuous-time body trajectory $\hat{T}_{WB}(t)$ from RTK
+position measurements (and optional attitude streams), using Prais--Winsten
+differenced whitening at high rate (Sec.~\ref{sec:pw}).
+The output trajectory is \textbf{frozen} before any extrinsic refinement.
+
+\subsection{Stage-2: frozen-trajectory extrinsic refinement}
+Given frozen $\hat{T}_{WB}(t)$, Stage-2 minimizes a Ceres cost over $T_{L_\ell B}$
+using body-cluster centroid factors and, when the aspect gate opens, an
+observed-mean lever $\mathbf{p}_B$ (Sec.~\ref{sec:mechanism}).
+Each LiDAR $\ell$ is solved in an \textbf{independent}
+\texttt{ExtrinsicRefiner} scope---no shared \texttt{CalibrationEstimator} state
+across sensors (\texttt{multi\_lidar\_body\_calibration}, commit
+\texttt{3fb7ddf}).
+
+\subsection{Multi-LiDAR composition without FOV overlap}
+For diagonal deployment (e.g., NE and SW corner posts), sensors need not see the
+same scene.
+Per-sensor absolute extrinsics $\hat{T}_{L_\ell W}$ are estimated separately; the
+relative transform is composed post hoc:
+\begin{equation}
+  \hat{T}_{L_{\mathrm{SW}}\leftarrow L_{\mathrm{NE}}}
+  = \hat{T}_{L_{\mathrm{SW}}W}\,\hat{T}_{L_{\mathrm{NE}}W}^{-1}.
+\end{equation}
+Regression tests confirm production multi-LiDAR NE/SW errors match single-sensor
+in-process solves (12.149\,mm / 42.041\,mm, simulation).
+
+\subsection{Framework diagram}
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[
+    node distance=8mm and 12mm,
+    box/.style={draw, rounded corners, minimum width=22mm, minimum height=7mm, align=center, font=\small},
+    arr/.style={-{Stealth[length=2mm]}, thick}
+  ]
+    \node[box] (rtk) {RTK / attitude\\measurements};
+    \node[box, right=of rtk] (s1) {Stage-1\\$T_{WB}(t)$};
+    \node[box, right=of s1] (freeze) {Freeze\\trajectory};
+    \node[box, below=10mm of freeze] (s2a) {Stage-2\\LiDAR NE};
+    \node[box, right=of s2a] (s2b) {Stage-2\\LiDAR SW};
+    \node[box, right=of s2b] (rel) {$T_{\mathrm{rel}}$\\compose};
+    \draw[arr] (rtk) -- (s1);
+    \draw[arr] (s1) -- (freeze);
+    \draw[arr] (freeze) -- (s2a);
+    \draw[arr] (freeze) -- (s2b);
+    \draw[arr] (s2a) -- (rel);
+    \draw[arr] (s2b) -- (rel);
+  \end{tikzpicture}
+  \caption{Separable two-stage pipeline: shared Stage-1 trajectory, independent
+  per-LiDAR Stage-2 Ceres scopes, post-hoc relative composition.
+  \TODO{replace with publication-quality figure from figure\_table\_plan.md Fig.~1}.}
+  \label{fig:framework}
+\end{figure}
+
+\subsection{Production modules}
+Key implementations in \texttt{clic\_calib}:
+\texttt{Stage1TrajectoryFitter} (PW-whitened RTK trajectory),
+\texttt{body\_gated\_calibration} (gated observed-mean $\times 3$ + guards),
+\texttt{observed\_mean\_gate} (yaw\_cv $\geq 0.65$ + POI path),
+\texttt{multi\_lidar\_body\_calibration} (per-sensor Stage-2 loop), and
+\texttt{relative\_extrinsic} (\S7.2 covariance and center-reg metric).

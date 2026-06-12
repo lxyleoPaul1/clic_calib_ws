@@ -1,0 +1,98 @@
+\section{Field Experiments}
+\label{sec:field}
+
+\textbf{Status: structured placeholders only --- no field numbers in this draft.}
+
+This section defines what we will measure on real intersection data.
+Sphere targets are used \textbf{only} as an independent ground-truth ruler to score
+board-free error; they are \textbf{not} a calibration fallback.
+
+\subsection{Experimental setup (placeholder)}
+\begin{itemize}
+  \item \textbf{Site:} urban intersection, diagonal dual Ruby LiDAR posts,
+    baseline $\sim$70\,m, heights 3--6\,m, negligible FOV overlap.
+    \TODO{field campaign A: actual site name, GPS coordinates, post survey}
+  \item \textbf{Platform:} DJI M3E + RTK + PSDK LiDAR @ 10\,Hz.
+    \TODO{field campaign A: firmware versions, antenna lever-arm survey}
+  \item \textbf{Flight:} POI tidal-lock sectors per simulation \flightW{};
+    attitude diversity per P1.5 recipe.
+    \TODO{field campaign B: flight logs, POI sector timing, weather}
+  \item \textbf{Ground truth:} retroreflective sphere anchors surveyed by total station
+    (independent of board-free pipeline).
+    \TODO{field campaign C: sphere positions, survey uncertainty}
+\end{itemize}
+
+\subsection{Sphere-anchor evaluation protocol (method, not calibration)}
+On the \textbf{same} flight segment:
+\begin{enumerate}
+  \item Survey sphere centers (total station) $\Rightarrow$ ground-truth extrinsic ruler.
+  \item Run board-free calibration once (sole method).
+  \item Report $\Delta$trans, $\Delta$rot, center-reg vs.\ sphere-derived truth.
+\end{enumerate}
+Spheres measure error; they do not replace board-free.
+
+\subsection{Table~\ref{tab:field_boardfree}: board-free vs.\ sphere truth}
+\begin{table}[t]
+  \centering
+  \caption{Field board-free accuracy vs.\ sphere-anchor ground truth.}
+  \label{tab:field_boardfree}
+  \begin{tabular}{lccc}
+    \toprule
+    LiDAR & $\Delta$trans [mm] & $\Delta$rot [$^\circ$] & center-reg [mm] \\
+    \midrule
+    NE & \TODO{field campaign A: NE $\Delta$trans vs sphere-anchor} &
+         \TODO{field campaign A: NE $\Delta$rot} &
+         \TODO{field campaign A: NE center-reg} \\
+    SW & \TODO{field campaign A: SW $\Delta$trans vs sphere-anchor} &
+         \TODO{field campaign A: SW $\Delta$rot} &
+         \TODO{field campaign A: SW center-reg} \\
+  \end{tabular}
+\end{table}
+
+\subsection{Table~\ref{tab:field_relext}: coherent-bias residual (total-station check)}
+\begin{table}[t]
+  \centering
+  \caption{Field test of \S7.2 coherent-bias cancellation (vs.\ simulation 0.166$\times$).}
+  \label{tab:field_relext}
+  \begin{tabular}{lcc}
+    \toprule
+    Metric & Simulation & Field \\
+    \midrule
+    $\mathrm{tr}\,\mathrm{Cov}(\delta t_{\mathrm{rel}}) / \mathrm{mean}\,\mathrm{Cov}(\delta t_{\mathrm{abs}})$ & 0.166$\times$ & \TODO{field campaign D: measured rel/abs ratio under real RTK} \\
+    $r(\|\delta p\|_{\mathrm{NE}},\|\delta p\|_{\mathrm{SW}})$ & 1.00 (coherent) & \TODO{field campaign D: epoch correlation} \\
+    center-reg under coherent perturbation & --- & \TODO{field campaign D: center-reg residual} \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Research questions for field (results pending)}
+\begin{enumerate}
+  \item \textbf{Real point-cloud bias magnitude:} does empirical $\mathbf{b}_B(u_B)$
+    on live data match simulation field shape?
+    \TODO{field campaign B: per-epoch bias vs $u_B$ scatter plot data}
+  \item \textbf{Board-free field accuracy:} sub-decimeter NE and honest SW sector
+    asymmetry at intersection scale?
+    \TODO{field campaign A: Table~\ref{tab:field_boardfree} cells}
+  \item \textbf{Coherent-bias residual:} is field rel/abs ratio weaker than 0.166$\times$?
+    \TODO{field campaign D: Table~\ref{tab:field_relext} cells}
+  \item \textbf{POI flight feasibility:} can operators execute tidal-lock sectors
+    without degrading RTK or safety margins?
+    \TODO{field campaign B: POI execution notes + gate yaw\_cv statistics}
+\end{enumerate}
+
+\subsection{Field figures (placeholder)}
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.92\columnwidth}{\centering\vspace{12mm}
+    \TODO{field campaign A: intersection layout + diagonal Ruby posts + flight path}\vspace{12mm}}}
+  \caption{Field deployment schematic (placeholder).}
+  \label{fig:field_layout}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.92\columnwidth}{\centering\vspace{12mm}
+    \TODO{field campaign B: real $u_B$--bias scatter vs simulation Fig.~\ref{fig:mechanism}a}\vspace{12mm}}}
+  \caption{Field aspect--bias diagnostic (placeholder).}
+  \label{fig:field_bias}
+\end{figure}
