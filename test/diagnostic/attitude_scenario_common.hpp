@@ -30,18 +30,12 @@ struct AttitudeNoiseSpec {
   }
 };
 
-inline void AppendAttitudeObservations(SyntheticScenarioBundle* bundle,
-                                       const SyntheticFlightGeometry& geom,
-                                       const AttitudeNoiseSpec& att_noise,
-                                       std::mt19937* rng) {
-  if (!bundle || !rng) {
+inline void AppendAttitudeObservationsForDuration(
+    SyntheticScenarioBundle* bundle, double t_end,
+    const AttitudeNoiseSpec& att_noise, std::mt19937* rng) {
+  if (!bundle || !rng || t_end <= 0.0) {
     return;
   }
-  const int n_layers =
-      std::max(1, static_cast<int>(geom.flight_layers_m.size()));
-  const double t_end = geom.use_legacy_local_pose || geom.use_legacy_200m_pose
-                           ? 5.0
-                           : n_layers * geom.layer_duration_s;
   const double dt = 1.0 / att_noise.sample_hz;
   const Eigen::Matrix3d cov = att_noise.TangentCovarianceRad2();
   std::normal_distribution<double> normal(0.0, 1.0);
@@ -62,6 +56,21 @@ inline void AppendAttitudeObservations(SyntheticScenarioBundle* bundle,
     obs.R_WB_observed_ = R_gt * SO3d::exp(n);
     bundle->attitude_obs.push_back(obs);
   }
+}
+
+inline void AppendAttitudeObservations(SyntheticScenarioBundle* bundle,
+                                       const SyntheticFlightGeometry& geom,
+                                       const AttitudeNoiseSpec& att_noise,
+                                       std::mt19937* rng) {
+  if (!bundle || !rng) {
+    return;
+  }
+  const int n_layers =
+      std::max(1, static_cast<int>(geom.flight_layers_m.size()));
+  const double t_end = geom.use_legacy_local_pose || geom.use_legacy_200m_pose
+                           ? 5.0
+                           : n_layers * geom.layer_duration_s;
+  AppendAttitudeObservationsForDuration(bundle, t_end, att_noise, rng);
 }
 
 inline SyntheticScenarioBundle BuildNearFieldFimNoisyScenarioWithAttitude(

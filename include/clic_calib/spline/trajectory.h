@@ -47,6 +47,10 @@ class BodyTrajectory : public Se3Spline<SplineOrder, double> {
   Eigen::Vector3d sphere_center_w(double t_s,
                                   const Eigen::Vector3d& lever_b_to_g) const;
 
+  /** @brief Board-free: p_body^W(t) = p_WB(t) + R_WB(t) * L_{B→body}. */
+  Eigen::Vector3d body_centroid_w(double t_s,
+                                  const Eigen::Vector3d& lever_b_to_body) const;
+
   /** @brief §4.1: p_{M_j}^W(t) = p_G^W(t) + R_WB(t) * L_{G→M_j}. */
   Eigen::Vector3d marker_center_w(double t_s,
                                   const Eigen::Vector3d& lever_b_to_g,

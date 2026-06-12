@@ -32,6 +32,11 @@ Eigen::Vector3d BodyTrajectory::sphere_center_w(
   return sphere_center_world(pose_wb(t_s), lever_b_to_g);
 }
 
+Eigen::Vector3d BodyTrajectory::body_centroid_w(
+    double t_s, const Eigen::Vector3d& lever_b_to_body) const {
+  return body_centroid_world(pose_wb(t_s), lever_b_to_body);
+}
+
 Eigen::Vector3d BodyTrajectory::marker_center_w(
     double t_s, const Eigen::Vector3d& lever_b_to_g,
     const Eigen::Vector3d& lever_g_to_mj) const {

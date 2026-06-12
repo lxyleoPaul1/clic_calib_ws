@@ -221,6 +221,19 @@ inline SyntheticFlightGeometry NearFieldFimScenarioGeometry() {
   return g;
 }
 
+/** Wide azimuth + pitch/roll for aspect-diversity audit (same timing as FIM). */
+inline SyntheticFlightGeometry NearFieldHighAspectScenarioGeometry() {
+  SyntheticFlightGeometry g = NearFieldFimScenarioGeometry();
+  g.label = "nearfield_high_aspect";
+  g.azimuth_span_deg = 165.0;
+  g.flight_dist_min_m = 18.0;
+  g.flight_dist_max_m = 38.0;
+  g.high_attitude_variation = true;
+  g.pitch_amp_rad = 0.40;
+  g.roll_amp_rad = 0.25;
+  return g;
+}
+
 inline SyntheticScenarioBundle BuildNearFieldFimNoisyScenario(
     uint32_t seed, const RealisticNoiseSpec& noise) {
   return BuildNoisyScenarioFromGeometry(seed, noise,

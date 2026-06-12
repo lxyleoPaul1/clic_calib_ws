@@ -47,6 +47,10 @@ struct SyntheticFlightGeometry {
   bool use_legacy_local_pose = false;
   bool use_legacy_200m_pose = false;
   double legacy_range_m = 200.0;
+  /** Extra pitch/roll on near-field poses for aspect-diversity experiments. */
+  bool high_attitude_variation = false;
+  double pitch_amp_rad = 0.35;
+  double roll_amp_rad = 0.20;
 };
 
 inline SyntheticFlightGeometry LegacyLocalMultiLayerGeometry() {
@@ -182,7 +186,11 @@ inline SE3d PoseWbFromGeometry(double t, const SyntheticFlightGeometry& geom) {
   const Eigen::Vector3d to_sensor = -p_wb;
   const double yaw =
       std::atan2(to_sensor.y(), to_sensor.x());
-  const SO3d R = SO3d::rotZ(yaw);
+  SO3d R = SO3d::rotZ(yaw);
+  if (geom.high_attitude_variation) {
+    R = R * SO3d::rotY(geom.pitch_amp_rad * std::sin(2.0 * M_PI * phase)) *
+        SO3d::rotX(geom.roll_amp_rad * std::cos(2.0 * M_PI * phase));
+  }
   return SE3d(R, p_wb);
 }
 
