@@ -1,0 +1,105 @@
+
+\documentclass[tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\begin{tikzpicture}
+  \begin{groupplot}[
+    group style={group size=3 by 1, horizontal sep=1.0cm},
+    width=0.34\linewidth, height=0.30\linewidth,
+    grid=major,
+    tick label style={font=\scriptsize},
+    label style={font=\scriptsize},
+    title style={font=\scriptsize}
+  ]
+  \nextgroupplot[
+    title={(a) Aspect--bias coupling},
+    xlabel={$u_B$ az [deg]}, ylabel={bias$_x$ [mm]}
+  ]
+    \addplot[only marks, mark size=0.8pt, blue, opacity=0.5]
+      coordinates {
+      (44.24,-87.1)
+      (59.12,-71.0)
+      (51.49,-37.5)
+      (51.83,21.0)
+      (69.40,0.3)
+      (43.91,-157.4)
+      (25.39,-342.5)
+      (43.36,-84.8)
+      (40.98,25.1)
+      (27.75,-128.7)
+      (42.65,-260.8)
+      (57.31,-117.5)
+      (49.61,-147.2)
+      (50.22,-132.1)
+      (68.04,-67.4)
+      (48.50,-62.9)
+      (28.19,-185.4)
+      (45.56,-220.6)
+      (42.16,-100.9)
+      (27.29,-131.7)
+      };
+    \addplot[only marks, mark size=0.8pt, orange, opacity=0.5]
+      coordinates {
+      (-133.53,184.3)
+      (-118.20,59.8)
+      (-125.57,-87.1)
+      (-125.53,13.4)
+      (-108.29,42.0)
+      (-144.45,134.3)
+      (-158.58,305.1)
+      (-139.71,28.8)
+      (-140.64,90.4)
+      (-151.60,132.6)
+      (-132.13,110.5)
+      (-116.43,-95.7)
+      (-123.53,184.3)
+      (-123.61,118.3)
+      (-106.55,163.7)
+      (-151.12,217.6)
+      (-161.06,276.1)
+      (-141.62,139.7)
+      (-141.63,23.3)
+      (-151.20,324.0)
+      };
+
+  \nextgroupplot[
+    title={(b) Attitude averaging},
+    ylabel={[mm]}, symbolic x coords={c,d},
+    xtick={c,d}, ymin=0, ymax=240,
+    legend style={font=\tiny, at={(0.5,1.05)}, anchor=south}
+  ]
+    \addplot[ybar, fill=blue!55, bar width=12pt] coordinates {(c,220) (d,51)};
+    \addplot[ybar, fill=red!55, bar width=12pt] coordinates {(c,19.5) (d,19.5)};
+    \legend{horiz., vert.}
+
+  \nextgroupplot[
+    title={(c) Identifiability transition},
+    xlabel={yaw\_cv}, ylabel={trans [mm]},
+    ymin=0, ymax=480
+  ]
+    \addplot[blue, thick, mark=*] coordinates {
+      (0.0019,453.0)
+      (0.0108,285.3)
+      (0.0467,237.0)
+      (0.1174,211.6)
+      (0.2950,163.5)
+      (0.5748,98.5)
+      (0.7658,57.8)
+      (0.9390,47.1)
+    };
+    \addplot[red, thick, mark=square*] coordinates {
+      (0.0019,442.6)
+      (0.0108,275.7)
+      (0.0467,187.0)
+      (0.1174,133.4)
+      (0.2950,70.4)
+      (0.5748,39.7)
+      (0.7658,26.1)
+      (0.9390,27.0)
+    };
+    \draw[dashed, gray] (axis cs:0.65,0) -- (axis cs:0.65,480);
+    \node[font=\tiny, anchor=south west] at (axis cs:0.67,420) {0.65};
+  \end{groupplot}
+\end{tikzpicture}
+\end{document}

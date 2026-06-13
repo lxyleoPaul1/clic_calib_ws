@@ -18,60 +18,86 @@ diversity guard case).
     \toprule
     Metric & Value [mm] \\
     \midrule
-    Centroid-only $\|$trans$\|$ & 63.5 \\
-    Observed-mean $\times 3$ & 18.5 \\
-    Joint-opt reference & 20.4 \\
+    Centroid-only $\|$trans$\|$ & 55.7 $\pm$ 10.7 \\
+    Observed-mean $\times 3$ & 30.0 $\pm$ 13.0 \\
+    Joint-opt reference & 26.9 $\pm$ 10.1 \\
     GT varying RMS (bias field) & $\sim$22 \\
     \bottomrule
   \end{tabular}
+  \vspace{1mm}
+
+  {\footnotesize $N{=}10$ seeds (13025--13034); mean$\pm$std from
+  \texttt{test\_paper\_multiseed}.
+  Frozen regression anchor @ seed 13025: centroid 63.5 / observed-mean 18.5 /
+  joint-opt 20.4\,mm.}
 \end{table}
 
 Diverse aspect (yaw\_cv $\approx 0.78$, pitch\_std $\approx 16^\circ$) enables
-$\mathbf{p}_B$; centroid floor $\sim$64\,mm, observed-mean $\sim$18--20\,mm.
+$\mathbf{p}_B$; centroid floor $\sim$56\,mm (mean), observed-mean $\sim$30\,mm
+(mean) with seed 13025 at 18.5\,mm.
+Centroid-only matches what a trajectory-matching pipeline \cite{ren2023trajmatch}
+would recover from the same detections---aligning raw cluster centroids to RTK
+without bias modeling (Sec.~\ref{sec:related}).
 
 \subsection{Diagonal dual-LiDAR @ \flightW{}}
 Geometry: NE/SW posts at ($\pm$25, $\pm$25)\,m, baseline 70.7\,m, POI serial lock
 $t\in[0,45)\to$NE, $t\in[45,90)\to$SW.
 
-\begin{table}[t]
+\begin{table}[!t]
   \centering
   \caption{Dual-LiDAR @ 0.5\,Hz (simulation).}
   \label{tab:wu_dual}
-  \begin{tabular}{lcccc}
+  \footnotesize
+  \colfit{%
+  \begin{tabular}{@{}lcccc@{}}
     \toprule
-    & NE obs [mm] & SW obs [mm] & rel rot [$^\circ$] & center-reg [mm] \\
+    & NE [mm] & SW [mm] & rel rot [$^\circ$] & c-reg [mm] \\
     \midrule
-    Frozen gate & 12.2 & 42.0 & 0.12 & 41 \\
-    Production pipeline & 12.149 & 42.041 & --- & --- \\
+    End-to-end pipeline & 29.7 $\pm$ 9.7 & 29.0 $\pm$ 10.8 & 0.12$^\dagger$ & 41 \\
+    Per-sensor solo (check) & \multicolumn{2}{c}{anchor 13025: 12.15 / 42.04} & --- & --- \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
+  \vspace{1mm}
+
+  {\footnotesize $N{=}10$ seeds (13025--13034); \texttt{test\_paper\_multiseed}.
+  $^\dagger$rel rot @ anchor seed 13025.}
 \end{table}
 
-\subsubsection{Honest NE/SW asymmetry}
-SW $\sim$42\,mm is \textbf{confirmed sector geometric anisotropy}, not cross-sensor
-estimator leakage: independent per-sensor Stage-2 solves reproduce frozen values.
-Mechanism: SW sightline vs.\ body main tilt axis $\Rightarrow$ larger lever
-projection of $\mathbf{b}_{\mathrm{const}}$.
-\textbf{Paper obligation:} present both sectors; do not claim symmetric accuracy.
+Across ten seeds the two diagonal sectors are statistically comparable
+(NE 29.7$\pm$9.7\,mm, SW 29.0$\pm$10.8\,mm); the difference (0.7\,mm) is far
+smaller than either standard deviation ($\sim$10\,mm).
+The 12/42\,mm split seen at the frozen regression anchor (seed 13025) falls within
+seed-to-seed variation and is not a systematic sector effect.
+Independent per-sensor Stage-2 solves still reproduce the anchor values at that seed.
 
 \subsection{Observability gate (joint FIM $\lambda_{\min}$)}
+We audit a $12$-dimensional extrinsic block $F_{\mathrm{ext}}$ (translation in
+meters, rotation in radians, local $SE(3)$ parameterization).
+$\lambda_{\min}$ is the smallest eigenvalue of the Schur-complement marginal
+information on this block (unitless in the chosen metric).
 \begin{table}[t]
   \centering
   \caption{Coplanar ablation vs.\ multi-layer (simulation).}
   \label{tab:lambda}
-  \begin{tabular}{lc}
+  \begin{tabular}{lcc}
     \toprule
-    Configuration & $\lambda_{\min}$ \\
+    Configuration & $\lambda_{\min}$ & cond.\ $(F_{\mathrm{ext}})$ \\
     \midrule
-    Multi-layer (well observed) & \textbf{1.07357} ($\approx 1.074$) \\
-    Coplanar (degenerate) & $\approx 0$ (numerical null) \\
+    Multi-layer (well observed) & \textbf{1.07357} & $\sim 9\times 10^2$ \\
+    Coplanar (degenerate) & $\sim 10^{-12}$ & $\sim 10^{300}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Distinct from aspect bias--translation collinearity (Sec.~\ref{sec:mechanism_identifiability}):
-coplanar geometry yields rank deficiency in joint FIM; multi-layer flight restores
-observability (Sec.~\ref{sec:mechanism_coplanar}).
+The coplanar $\lambda_{\min}$ is at machine-precision null ($\mathcal{O}(10^{-12})$);
+multi-layer flight restores a well-conditioned margin ($\lambda_{\min}\gg 0.003$
+gate).
+Distinct from aspect bias--translation collinearity
+(Sec.~\ref{sec:mechanism_identifiability}): this audit diagnoses \emph{geometric}
+rank deficiency (Sec.~\ref{sec:mechanism_coplanar}).
 
 \subsection{Two-stage pipeline sanity (sphere-target configuration)}
-Centimeter-level split 50/50; mean $|LW|$ translation 6.556\,mm (simulation).
+On the sphere-target sanity configuration (independent of board-free flights), the
+two-stage pipeline converges to centimeter-level translation error in 50/50 trials;
+mean $|t_{LW}|$ error is 6.556\,mm (simulation).

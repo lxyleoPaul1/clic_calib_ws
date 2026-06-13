@@ -9,12 +9,22 @@
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{array}
 \usepackage{url}
+\usepackage{adjustbox}
+\usepackage{placeins}
+\usepackage{amsthm}
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta}
 
+\newtheorem{proposition}{Proposition}
+
 % Visible placeholder macro for field data
 \newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+
+% Table/figure fit helpers (IEEE two-column)
+\newcommand{\colfit}[1]{\adjustbox{max width=\linewidth}{#1}}
+\newcommand{\pagefit}[1]{\adjustbox{max width=\textwidth}{#1}}
 
 % Simulation flight labels (repo: \u4e01/\u620a/\u7532/\u4e59)
 \newcommand{\flightD}{Flight-D}
@@ -32,13 +42,15 @@ Active Attitude Excitation as a Necessary Condition}
 \maketitle
 
 \begin{abstract}
-Board-free extrinsic calibration of roadside LiDARs from a UAV body is governed not
-by sensor noise but by \emph{flight attitude diversity}.
+Board-free extrinsic calibration of \textbf{roadside} LiDARs---using a flying UAV hull
+as target, with no onboard LiDAR---is governed not by sensor noise but by
+\emph{flight attitude diversity}.
 The empirical body centroid is an aspect-dependent bias vector field on the relative
 bearing sphere $u_B$; under concentrated aspect it becomes indistinguishable from
 extrinsic translation and silently pollutes estimates ($\sim$211\,mm in simulation),
-while active 3D attitude excitation restores identifiability and decimeter-level
-accuracy ($\sim$20\,mm in simulation).
+while active 3D attitude excitation restores identifiability and centimeter-level
+accuracy ($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor
+18.5\,mm).
 We present a separable two-stage estimator with per-LiDAR independent Stage-2 solves
 for zero-FOV-overlap diagonal deployment, an aspect gate that falls back when
 excitation is insufficient, and a relative-extrinsic covariance analysis showing
@@ -55,7 +67,6 @@ LiDAR calibration, extrinsic calibration, UAV, RTK, board-free calibration, mult
 \input{sec_framework}
 \input{sec_mechanism}
 \input{sec_relext}
-\input{sec_pw}
 \input{sec_sim}
 \input{sec_field}
 \input{sec_conclusion}

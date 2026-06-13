@@ -13,6 +13,10 @@ At each body-cluster epoch $i$, define the empirical centroid bias
 \end{equation}
 where $\hat{\mathbf{c}}^{\mathrm{emp}}$ is the centroid of \emph{visible} sampled
 points (not the nominal box center plus noise).
+\textbf{Diagnostic use:} Eq.~\eqref{eq:bias_field} is a \emph{diagnostic} definition---
+in simulation we evaluate it with ground-truth $T_{L_\ell W}$ to reveal bias
+structure; in the estimator, $\mathbf{p}_B$ is an \emph{estimated} parameter and
+does not require this GT mapping (avoiding circular dependence).
 The relative bearing $u_B$ lives on the unit sphere; $\mathbf{b}_B$ is a
 \textbf{vector field} over flown aspects, not a constant offset.
 The observed-mean lever $\mathbf{p}_B$ estimates the \textbf{mean of this field}
@@ -25,55 +29,98 @@ over the aspect distribution actually flown:
 \subsection{Degeneracy as an identifiability statement}
 \label{sec:mechanism_identifiability}
 
+Identifiability rests on two coupled \textbf{knobs}: (\emph{i})~\textbf{aspect control}
+on $u_B$, which determines whether the bias field collapses to a single estimable
+vector; and (\emph{ii})~\textbf{attitude diversity} in $R_{WB}(t)$, which determines
+whether that vector is separable from LiDAR translation.
+
+\paragraph{Aspect knob (freeze the field).}
+When $u_B$ is held nearly constant---POI tidal-lock; $\mathrm{std}(u_B)\lesssim 1.3^\circ$
+in our profiles---the body-frame bias field reduces to a constant
+$\bar{\mathbf{b}} \equiv \mathbf{b}_B(u_B^*)$.
+This is precisely what tidal-lock accomplishes: it freezes the field so that
+$\mathbf{p}_B$ has a well-defined scalar-vector target rather than an undefined
+mixture over aspects.
+
+\paragraph{Attitude knob (separate bias from translation).}
 Each epoch contributes a world-frame bias driver
 \begin{equation}
-  \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}},
+  \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\bar{\mathbf{b}},
   \label{eq:frame_bias}
 \end{equation}
-where $\mathbf{b}_{\mathrm{const}}$ captures the aspect-averaged body-frame bias
-structure and $R_{LW}$ maps LiDAR to world.
-Consider the mean over the calibration segment:
+where $R_{LW}$ is the rotation block of $T_{L_\ell W}$.
+Consider the segment mean
 \begin{equation}
+\begin{split}
   \bar{\mathbf{v}}
-  = \frac{1}{N}\sum_{i=1}^{N} R_{LW}\,R_{WB}(t_i)\,\mathbf{b}_{\mathrm{const}}
-  \approx R_{LW}\,\bar{R}_{WB}\,\mathbf{b}_{\mathrm{const}}
+  &= \frac{1}{N}\sum_{i=1}^{N} R_{LW}\,R_{WB}(t_i)\,\bar{\mathbf{b}} \\
+  &\approx R_{LW}\,\bar{R}_{WB}\,\bar{\mathbf{b}}
   \quad\text{when }\{R_{WB}(t_i)\}\text{ is concentrated.}
+\end{split}
   \label{eq:mean_v_concentrated}
 \end{equation}
 
-\textbf{Concentrated attitude $\Rightarrow$ structural non-identifiability.}
-When attitude is nearly constant ($R_{WB}(t_i)\approx\bar{R}_{WB}$), $\bar{\mathbf{v}}$
-is a \emph{fixed} world vector.
-In the centroid residual, a constant world offset is indistinguishable from a
-constant shift of the extrinsic translation $\mathbf{t}_{LW}$: both enter the
-observation model as an identical rigid translation of the projected body cloud.
-They are therefore collinear in the Fisher information matrix, creating a near-zero
-eigenvalue---this is not a noise-floor issue but a \textbf{structural non-identifiability}.
-No optimizer, including joint estimation of $\mathbf{p}_B$, can separate bias from
-translation from data that excite only this degenerate direction; the concentrated-aspect
-joint-opt path is a no-op at $\sim$211\,mm in simulation precisely because it cannot
-break this collinearity.
+\begin{proposition}[Bias--translation collinearity under locked aspect and attitude]
+\label{prop:collinear}
+Let the body-frame bias be constant ($\bar{\mathbf{b}}$, ensured by aspect control)
+and suppose $R_{WB}(t_i)\equiv\bar{R}_{WB}$ for all $i$.
+Then for any $\bar{\mathbf{b}}$ there exists
+$\delta\mathbf{t}_{LW}=-R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ such that replacing
+$\mathbf{t}_{LW}$ by $\mathbf{t}_{LW}+\delta\mathbf{t}_{LW}$ leaves all centroid
+residuals unchanged; the pair $(\bar{\mathbf{b}},\mathbf{t}_{LW})$ is unidentifiable
+along this direction and the Fisher information restricted to it is singular.
+\end{proposition}
 
-\textbf{Diverse attitude $\Rightarrow$ identifiability restored.}
-When $\{R_{WB}(t_i)\}$ spans sufficient pitch and yaw, each epoch rotates
-$\mathbf{b}_{\mathrm{const}}$ into a different world direction.
-Summation averages the horizontal components of $R_{WB}\mathbf{b}_{\mathrm{const}}$
-($\sim$220\,mm $\to$ $\sim$51\,mm mean horizontal norm in simulation)---diversity in
-\emph{attitude}, not translation alone.
-A body-$Z$ component $\sim$19.5\,mm remains because yaw cannot average it; observed-mean
-$\mathbf{p}_B$ (Eq.~\ref{eq:pB_mean}) explicitly estimates and removes this residual.
-Attitude diversity is therefore not merely empirically helpful: it is what restores
-the identifiability of extrinsic translation in the presence of an aspect-dependent
-centroid bias.
-\textbf{Active 3D attitude excitation is a necessary condition for unbiased board-free
-calibration.}
+\begin{proof}[Sketch]
+Under fixed $R_{WB}$, $\bar{\mathbf{v}}=R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ is a
+constant world offset in the residual.
+Adding $\delta\mathbf{t}_{LW}=-R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ applies the
+identical rigid shift to the projected cloud; no optimizer can distinguish bias from
+translation without breaking either premise.
+\end{proof}
+
+Proposition~\ref{prop:collinear} is the \textbf{singular limit} as $R_{WB}$
+dispersion tends to zero: when attitude diversity increases, the Fisher information
+eigenvalue along the collinear direction grows continuously from singularity and
+identifiability is \textbf{smoothly restored}---not via a sharp phase transition.
+Fig.~\ref{fig:mechanism}(c) quantifies this recovery with a yaw\_cv sweep
+(Sec.~\ref{sec:sim}).
+
+The concentrated-aspect joint-opt floor at $\sim$211\,mm (simulation) is the empirical
+signature of Proposition~\ref{prop:collinear}: joint $\mathbf{p}_B$ cannot break the
+collinearity when both knobs are ``off.''
+
+\paragraph{Diverse attitude restores identifiability.}
+When $\{R_{WB}(t_i)\}$ spans sufficient pitch and yaw, epochs rotate
+$\bar{\mathbf{b}}$ into different world directions; summation averages horizontal
+components ($\sim$220\,mm $\to$ $\sim$51\,mm in simulation).
+A body-$Z$ residual $\sim$19.5\,mm remains (yaw cannot average it); observed-mean
+$\mathbf{p}_B$ removes it explicitly.
+In the zero-diversity limit the extrinsic translation is strictly unidentifiable
+(Prop.~\ref{prop:collinear}); attitude diversity restores identifiability and
+accuracy improves monotonically with it (Fig.~\ref{fig:mechanism}(c)); active 3D
+attitude excitation is a \textbf{prerequisite} for unbiased board-free calibration
+rather than an optional refinement.
+
+\paragraph{Mapping to the $2\times2$ table.}
+Table~\ref{tab:degeneracy_2x2}: the \textbf{$u_B$ axis} controls whether
+$\mathbf{b}_B(u_B)$ collapses to $\bar{\mathbf{b}}$ (POI-lock vs.\ sweep); the
+\textbf{$R_{WB}$ axis} controls whether Proposition~\ref{prop:collinear} applies
+(concentrated vs.\ diverse attitude).
 
 \subsection{Engineering consequence: aspect gate and guardrails}
 When excitation is insufficient, the system must not pretend $\mathbf{p}_B$ is
 identifiable.
-An aspect gate (yaw\_cv $\geq 0.65$, with a POI tidal-lock path) attempts
-observed-mean refinement only when attitude support is adequate; otherwise it falls
-back to centroid-only.
+The \textbf{aspect gate} tests whether attitude support is adequate: it opens if
+\textbf{either} yaw dispersion is sufficient (yaw coefficient of variation
+$\geq 0.65$) \textbf{or} the trajectory matches a POI tidal-lock pattern (sector
+serial lock with near-zero yaw--orbit mismatch).
+Fig.~\ref{fig:mechanism}(c) shows a \textbf{smooth} transition in calibration error
+vs.\ measured yaw\_cv; the threshold $0.65$ is \textbf{not} a phase-transition
+point---it is a \textbf{conservative operating point} on the upper shoulder of that
+transition, chosen because below it observed-mean gain is small and seed-to-seed
+spread is high, so the solver falls back to centroid-only.
+Only when the gate opens is observed-mean refinement attempted.
 A simulation ground-truth guard further applies observed-mean only if optimization cost
 and translation norm do not worsen relative to the centroid solution.
 On \flightY{} (low yaw\_cv $=0.32$), the gate closes and the estimate reverts to
@@ -90,60 +137,78 @@ The identifiability picture above is supported by frozen simulation profiles
 \subsubsection{Aspect--bias coupling (\flightD{})}
 Wide $u_B$ sweep with decoupled orbit attitude:
 
-\begin{table}[t]
+\begin{table}[!t]
   \centering
   \caption{Aspect--bias coupling on \flightD{} (simulation).}
   \label{tab:ding_correlation}
-  \begin{tabular}{lcccc}
+  \footnotesize
+  \colfit{%
+  \begin{tabular}{@{}lcccc@{}}
     \toprule
-    Sensor & $u_B$ az std [$^\circ$] & varying RMS [mm] & $r(u_B,\mathrm{bias}_x)$ & $r(u_B,\mathrm{bias}_y)$ \\
+    Sensor & $u_B$ std [$^\circ$] & RMS [mm] & $r_x$ & $r_y$ \\
     \midrule
     NE & 14.1 & 110 & +0.53 & $-$0.68 \\
     SW & 17.6 & 124 & $-$0.64 & +0.69 \\
     near-field ref. & --- & 22 & --- & --- \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
 \end{table}
 
 Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimuth.
 
 \subsubsection{$2\times2$ aspect--attitude table}
-\begin{table}[t]
+\begin{table*}[!t]
   \centering
   \caption{Degeneracy table: $u_B$ sweep vs.\ POI-lock $\times$ $R_{WB}$ diversity (simulation).}
   \label{tab:degeneracy_2x2}
-  \begin{tabular}{p{22mm}p{32mm}p{32mm}}
+  \footnotesize
+  \pagefit{%
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.18\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}@{}}
     \toprule
     & \textbf{$R_{WB}$ sweeps} & \textbf{$R_{WB}$ near-locked} \\
     \midrule
-    \textbf{$u_B$ sweeps} (\flightD{})
-    & NE obs 60.3 / SW 89.9\,mm; rel 311\,mm
-    & --- \\
-    \textbf{$u_B$ POI-locked} (\flightW{})
-    & NE 12.2 / SW 42.0\,mm$^\dagger$; rel rot 0.12$^\circ$
-    & \flightJ{} gate OFF: 31.5\,mm \\
+    \textbf{$u_B$ sweeps} (\flightD{} / quadrant fill)
+    & NE 60.3 / SW 89.9\,mm; rel 311\,mm
+    & NE 106.3 / SW 84.9\,mm$^\S$ \\
+    \textbf{$u_B$ POI-lock} (\flightW{})
+    & NE 29.7$\pm$9.7 / SW 29.0$\pm$10.8\,mm$^\dagger$; rel rot 0.12$^\circ$
+    & \flightJ{} gate OFF: 31.5\,mm$^\ddagger$ \\
     \bottomrule
-  \end{tabular}
-  \\[1mm]
-  {\footnotesize $^\dagger$SW 42\,mm = sector geometric anisotropy (Sec.~\ref{sec:sim}).}
-\end{table}
+  \end{tabular}%
+  }
+  \vspace{1mm}
+
+  {\footnotesize $^\dagger$Mean$\pm$std over 10 seeds; frozen anchor @ 13025: 12.15 / 42.04\,mm
+  (not a systematic sector split; Sec.~\ref{sec:sim}).
+  $^\ddagger$\flightJ{}: $u_B$ sweeps with near-locked $R_{WB}$; gate OFF
+  $\Rightarrow$ centroid-only 31.5\,mm (both posts), observed-mean not applied.
+  $^\S$Quadrant fill: wide orbit + fixed route heading; gate OFF, obs=centroid
+  (test\_paper\_quadrant\_fill @ seed 13025).}
+\end{table*}
 
 \subsubsection{Concentrated vs.\ diverse aspect}
-\begin{table}[t]
+\begin{table}[!t]
   \centering
   \caption{Concentrated vs.\ diverse aspect (simulation).}
   \label{tab:concentrated}
-  \begin{tabular}{lccc}
+  \footnotesize
+  \colfit{%
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.34\linewidth}ccc@{}}
     \toprule
-    Path & $\|$trans$\|$ [mm] & Gate & Note \\
+    Path & $\|$trans$\|$ & Gate & Note \\
     \midrule
-    Centroid-only, concentrated & 211.4 & --- & bias $\parallel t_{LW}$ \\
-    Centroid-only, diverse & 63.5 & --- & partial yaw help \\
-    Observed-mean $\times 3$, diverse & 18.5 & ON & $\mathbf{p}_B$ decorrelates \\
-    Joint-opt $\mathbf{p}_B$, concentrated & $\sim$211 & --- & \textbf{no-op} \\
-    Observed-mean, diverse & 20.4 & ON & production target \\
+    Centroid, concentrated & 211.4 & --- & bias $\parallel t_{LW}$ \\
+    Centroid, diverse & 63.5 & --- & partial yaw \\
+    Obs-mean $\times 3$ & 30.0 $\pm$ 13.0$^\P$ & ON & $\mathbf{p}_B$ decorr. \\
+    Joint $\mathbf{p}_B$, conc. & $\sim$211 & --- & \textbf{no-op} \\
+    Obs-mean, diverse & 20.4 & ON & target \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
+  \vspace{1mm}
+
+  {\footnotesize $^\P$Mean$\pm$std over 10 seeds; anchor 13025: 18.5\,mm.}
 \end{table}
 
 \subsubsection{World-frame averaging under attitude diversity}
@@ -164,18 +229,20 @@ Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimut
 Tidal-lock audit (simulation): near-field high-aspect profile yaw$-$orbit std
 0.0$^\circ$ (locked); \flightD{} sector-0: 110.4$^\circ$ (not locked).
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
   \centering
-  \fbox{\parbox{0.95\textwidth}{\centering\vspace{18mm}
-    \TODO{Fig.~2 mechanism panel: (a) $u_B$ sphere vector field + Flight-D
-    scatter $r\approx\pm 0.5$--$0.7$; (b) $2\times2$ degeneracy table;
-    (c) $\|\mathrm{mean}(\mathbf{v})\|$ curve 220$\to$51\,mm + 19.5\,mm vertical bar}\vspace{18mm}}}
-  \caption{Board-free mechanism at a glance (placeholder layout).
-  Panel (a): aspect-dependent bias on $u_B$.
-  Panel (b): degeneracy table.
-  Panel (c): frame-wise world-frame averaging under attitude diversity.}
+  \pagefit{\includegraphics[width=\textwidth]{figures/fig_mechanism.pdf}}
+  \caption{Board-free mechanism (simulation).
+  (a)~Per-frame body-frame bias vs.\ $u_B$ azimuth on \flightD{} (near-sinusoidal
+  coupling; $r\approx\pm 0.5$--$0.7$).
+  (b)~Horizontal norm of the world-frame mean bias driver
+  $\|\mathrm{mean}(\mathbf{v})\|_h$ under concentrated vs.\ diverse attitude
+  (220$\to$51\,mm) with $\sim$19.5\,mm vertical residual.
+  (c)~$\|T_{LW}$ translation error vs.\ measured yaw\_cv (8 seeds per level);
+  dashed line: gate operating point $0.65$ (conservative shoulder, not a kink).}
   \label{fig:mechanism}
 \end{figure*}
+\FloatBarrier
 
 \subsection{Relation to coplanar geometric degeneracy}
 \label{sec:mechanism_coplanar}

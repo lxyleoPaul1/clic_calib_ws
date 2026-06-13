@@ -6,8 +6,9 @@ calibration at intersections with negligible FOV overlap.
 The central result is an identifiability argument: aspect-dependent body-centroid bias
 becomes collinear with extrinsic translation under concentrated attitude, producing
 structural non-identifiability ($\sim$211\,mm in simulation) that no joint optimizer
-can break; active 3D attitude excitation restores identifiability and $\sim$20\,mm
-accuracy (simulation).
+can break; active 3D attitude excitation restores identifiability and centimeter-level
+accuracy ($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor
+18.5\,mm).
 An aspect gate operationalizes this insight by rolling back when excitation is
 insufficient.
 Relative extrinsic uncertainty under coherent RTK bias can be tighter than absolute
@@ -16,14 +17,21 @@ Relative extrinsic uncertainty under coherent RTK bias can be tighter than absol
 \textbf{Field validation} on diagonal dual-Ruby data is structured in
 Sec.~\ref{sec:field} and remains to be filled.
 
-\subsection{Future work}
+\subsection{Limitations}
 \begin{itemize}
-  \item \textbf{Field campaigns} A--D: Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext}.
-  \item \textbf{Road-network scale:} corridor--intersection mixed layouts, city-scale
-    multi-LiDAR graphs (journal extension).
-  \item \textbf{Unified target framework:} a future T-ITS line may treat sphere/board
-    targets as a \emph{calibration method} for depot-style setups---orthogonal to
-    this paper, where spheres are evaluation rulers only.
-  \item \textbf{Online FIM / adaptive planning:} estimator reuse across missions
-    must address session-state teardown before online observability auditing.
+  \item \textbf{Airframe model:} simulation uses a single M3E box hull; other UAV
+    geometries may alter $\mathbf{b}_B(u_B)$.
+  \item \textbf{Constant $\bar{\mathbf{b}}$ premise} depends on aspect-control quality
+    (POI lock / $u_B$ dispersion); poor lock re-expands the field.
+  \item \textbf{Gate threshold} ($0.65$) is a conservative simulation operating point
+    on a smooth identifiability transition (Fig.~\ref{fig:mechanism}(c)), not a
+    phase-transition kink; field transfer requires validation.
+  \item \textbf{RTK quality} and wind/flight-execution errors are not fully modeled.
+  \item \textbf{Field sign-off} is pending (Sec.~\ref{sec:field}); all accuracy claims
+    outside Sec.~\ref{sec:field} are simulation-scoped.
 \end{itemize}
+
+\subsection{Future work}
+Field campaigns A--D (Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext});
+road-network multi-LiDAR graphs; online FIM / adaptive flight planning with fresh
+estimator scopes per mission.

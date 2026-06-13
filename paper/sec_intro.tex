@@ -10,6 +10,10 @@ Accuracy is instead set by a quantity rarely treated as a design variable: how
 \emph{diversely the UAV attitude is excited} during the calibration flight---\emph{board-free
 calibration accuracy is determined by flight attitude diversity, not by the sensor.}
 
+We use \emph{board-free} to mean no dedicated calibration target beyond the UAV
+airframe itself---no boards, spheres, or surveyed markers in the calibration loop
+(spheres appear only as evaluation rulers, Sec.~\ref{sec:field}).
+
 The body centroid used for board-free alignment is not a fixed offset.
 It is an \emph{aspect-dependent bias vector field} on the relative bearing $u_B$.
 When aspect is concentrated, this field aligns with extrinsic translation until the
@@ -18,15 +22,22 @@ estimates ($\sim$211\,mm in simulation) and that joint lever-arm optimization ca
 remove.
 Only active 3D attitude excitation---sector POI tidal-lock combined with pitch and
 yaw diversity---decorrelates the field so its world-frame mean can be estimated and
-subtracted, recovering $\sim$20\,mm accuracy in simulation.
-Active attitude excitation is therefore a \textbf{necessary condition} for unbiased
-board-free calibration: a flight-design requirement, not a refinement.
+subtracted, recovering centimeter-level accuracy ($\sim$30\,mm mean$\pm$std over
+seeds in simulation; best-seed anchor 18.5\,mm).
+In the zero-diversity limit, extrinsic translation is strictly unidentifiable
+(Sec.~\ref{sec:mechanism_identifiability}); attitude diversity restores
+identifiability and accuracy improves monotonically with it
+(Fig.~\ref{fig:mechanism}(c)).
+Active 3D attitude excitation is therefore a \textbf{prerequisite} for unbiased
+board-free calibration rather than an optional refinement.
 
-Cooperative perception at urban intersections increasingly relies on multiple roadside
-LiDARs on diagonal posts with $\sim$70\,m baselines and negligible field-of-view
-overlap---settings where calibration boards and shared views are impractical.
-A UAV carrying RTK and a body-mounted LiDAR naturally threads the combined visibility
-of all sensors, enabling \emph{board-free} calibration from vehicle point clouds alone.
+Cooperative perception at urban intersections increasingly relies on multiple
+\textbf{roadside} LiDARs on diagonal posts with $\sim$70\,m baselines and negligible
+field-of-view overlap---settings where calibration boards and shared views are
+impractical.
+A UAV carrying RTK only (no onboard LiDAR) flies through the combined visibility of
+those fixed sensors; each roadside LiDAR observes the UAV hull, enabling
+\emph{board-free} calibration from body point clouds alone.
 In this regime the attitude-excitation finding is not academic: without deliberate
 flight diversity, sub-decimeter extrinsics are structurally unattainable regardless
 of sensor grade.
@@ -34,10 +45,10 @@ of sensor grade.
 \subsection{Contributions}
 We contribute:
 \begin{enumerate}
-  \item A \textbf{separable two-stage framework}: Stage-1 fits an RTK-anchored body
-    trajectory $T_{WB}(t)$; Stage-2 freezes the trajectory and calibrates each LiDAR
-    extrinsic in an independent solve---enabling diagonal multi-LiDAR deployment with
-    zero FOV overlap.
+  \item A \textbf{separable two-stage framework}: Stage-1 fits an RTK-anchored UAV
+    trajectory $T_{WB}(t)$; Stage-2 freezes the trajectory and calibrates each
+    roadside LiDAR pose $T_{L_\ell W}$ in an independent solve---enabling diagonal
+    multi-post deployment with zero FOV overlap and no UAV-mounted sensors.
   \item A \textbf{board-free identifiability mechanism} (core contribution): we show
     that aspect-dependent centroid bias and extrinsic translation become collinear in
     the Fisher information under concentrated attitude, yielding a structural
@@ -50,11 +61,6 @@ We contribute:
     (simulation, scoped).
 \end{enumerate}
 
-We structure the field validation protocol (diagonal dual-Ruby intersection) and will
-report results in Sec.~\ref{sec:field}.
-
 \textbf{Sphere targets (scope boundary).}
-Retroreflective spheres appear \emph{only} as an independent ground-truth ruler to
-score board-free error in field experiments.
-They are \textbf{not} a fallback calibration method; board-free remains the sole
-calibration pipeline.
+Retroreflective spheres score board-free error in field experiments only; they are
+not a calibration fallback (Sec.~\ref{sec:field}).

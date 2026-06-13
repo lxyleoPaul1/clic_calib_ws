@@ -14,50 +14,36 @@ We report:
 \begin{itemize}
   \item \textbf{center-reg (obs)} --- headline metric, rotation-dominated, no 70.7\,m
     lever amplification (40.9\,mm, simulation);
-  \item rel-trans (obs) --- deprecated lever metric (49.0\,mm, simulation).
+  \item rel-trans (obs) --- lever-amplified metric (49.0\,mm, simulation; reported
+    for completeness).
 \end{itemize}
 
 \subsection{RTK perturbation dichotomy (simulation)}
 Monte Carlo ($N{=}20$, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
 
-\begin{table}[t]
+\begin{table*}[!t]
   \centering
   \caption{RTK injection causal chain (simulation).}
   \label{tab:relext_mc}
-  \begin{tabular}{lccc}
+  \footnotesize
+  \pagefit{%
+  \begin{tabular}{@{}lccp{0.34\textwidth}@{}}
     \toprule
-    Injection & $\mathrm{tr}\,\mathrm{Cov}(\delta t_{\mathrm{rel}}) / \mathrm{mean}\,\mathrm{Cov}(\delta t_{\mathrm{abs}})$ & $r(\|\delta p\|_{\mathrm{NE}},\|\delta p\|_{\mathrm{SW}})$ & Mechanism \\
+    Injection & rel/abs & $r(\|\delta p\|)$ & Mechanism \\
     \midrule
     White noise (per epoch) & \textbf{3.101}$\times$ & 0.40 & uncorrelated $\delta p$ stacks \\
     Coherent system bias & \textbf{0.166}$\times$ & 1.00 & common-mode cancels \\
     \bottomrule
-  \end{tabular}
-\end{table}
+  \end{tabular}%
+  }
+\end{table*}
 
-\textbf{Claims (simulation, scoped):}
-\begin{itemize}
-  \item Under a \textbf{coherent systematic-bias assumption}, relative covariance is
-    tighter than absolute (0.166$\times$).
-  \item White RTK noise \textbf{composes} in the relative frame (3.101$\times$)---not
-    an architecture defect.
-\end{itemize}
+\textbf{Claims (simulation, scoped):} under coherent systematic bias, relative
+covariance tightens (0.166$\times$); white per-epoch noise composes (3.101$\times$).
 
 \subsection{Temporal overlap at sector handoff (simulation)}
-\begin{table}[t]
-  \centering
-  \caption{Coherent-bias rel/abs ratio vs.\ overlap (simulation).}
-  \label{tab:overlap}
-  \begin{tabular}{lc}
-    \toprule
-    Geometry & coherent rel/mean(abs) \\
-    \midrule
-    Serial \flightW{} & 0.166$\times$ \\
-    +10\,s overlap at handoff & 0.15$\times$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Brief temporal overlap can tighten relative UQ without spatial FOV overlap.
+Serial \flightW{}: 0.166$\times$; +10\,s overlap at handoff: 0.15$\times$ (simulation).
+Brief overlap can tighten relative UQ without spatial FOV overlap.
 
 \subsection{Scope boundary (mandatory)}
 The 0.166$\times$ ratio depends on a \textbf{rigid global bias injection}
@@ -67,5 +53,4 @@ Real RTK includes drift, colored noise, and lever-arm coupling---\textbf{not} pe
 common-mode.
 \textbf{Do not cite 0.166$\times$ as a field guarantee.}
 Field cancellation is expected to be \textbf{weaker}; hardware relative-extrinsic
-residual under coherent bias is the empirical test
-(Sec.~\ref{sec:field}, Table~\ref{tab:field_relext}).
+residual under coherent bias is the empirical test (Sec.~\ref{sec:field}).

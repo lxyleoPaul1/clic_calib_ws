@@ -39,15 +39,8 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 | Platform bullet | Firmware, lever-arm | **A** | §Field setup |
 | Flight bullet | Logs, POI timing, weather | **B** | §Field setup |
 | Ground truth bullet | Sphere survey σ | **C** | §Sphere-anchor protocol |
-| `tab:field_boardfree` NE Δtrans | Board-free vs sphere NE translation error | **A** | Table 1 |
-| `tab:field_boardfree` NE Δrot | NE rotation error | **A** | Table 1 |
-| `tab:field_boardfree` NE center-reg | NE center-reg | **A** | Table 1 |
-| `tab:field_boardfree` SW Δtrans | SW translation error | **A** | Table 1 |
-| `tab:field_boardfree` SW Δrot | SW rotation error | **A** | Table 1 |
-| `tab:field_boardfree` SW center-reg | SW center-reg | **A** | Table 1 |
-| `tab:field_relext` rel/abs ratio | Measured field rel/abs vs sim 0.166× | **D** | Table 2 |
-| `tab:field_relext` correlation | Epoch correlation NE/SW | **D** | Table 2 |
-| `tab:field_relext` center-reg | Coherent perturbation residual | **D** | Table 2 |
+| `tab:field_boardfree` NE/SW cells | Short `\TODO{campaign A: ...}` in table (layout-safe) | **A** | Table 1 |
+| `tab:field_relext` rows | Short `\TODO{campaign D: ...}` in table* | **D** | Table 2 |
 | RQ1 | Per-epoch bias vs $u_B$ scatter data | **B** | Fig. 4 / mechanism transfer |
 | RQ2 | Table 1 all cells | **A** | Board-free accuracy claim |
 | RQ3 | Table 2 all cells | **D** | Relative extrinsic field test |
