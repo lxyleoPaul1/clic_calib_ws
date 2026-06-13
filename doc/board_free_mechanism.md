@@ -49,6 +49,8 @@ Mechanism closure for board-free `p_B` identifiability:
 | **u_B sweeps** (flight **丁**) | NE obs **60.3** / SW **89.9** mm; rel obs **311** mm | — |
 | **u_B POI-locked** (flight **戊**) | NE obs **12.1** / SW **42.0** mm†; rel rot **0.12°** | 甲 gate OFF: **31.5** mm (both sensors) |
 
+† **[勘误 @ P1 multiseed]** 12/42 为 anchor seed 特例；multiseed 结论见 `board_free_results_frozen.md` §⑥ 勘误与 `paper_supplementary_experiments.md`。
+
 ### Concentrated-aspect silent pollution (Phase 1.5)
 
 | Path | \|trans\| [mm] | Gate | Interpretation |
@@ -141,6 +143,8 @@ Scope: injected coherent systematic bias — **not a field guarantee**
 ---
 
 ## 5. Field expectation: 戊 NE/SW asymmetry (honest)
+
+> **[勘误 @ P1 multiseed]** 本节几何各向异性机理论述已撤回；原文保留作历史记录，现行结论见 `board_free_results_frozen.md` §⑥ / Known issues 勘误及 `paper_supplementary_experiments.md`。
 
 | Sensor | obs \|trans\| @ 0.5 Hz | Production @ `3fb7ddf` |
 |--------|------------------------|-------------------------|

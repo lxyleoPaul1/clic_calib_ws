@@ -35,3 +35,7 @@ Reproduce: `scripts/compile_local_tests.sh` then run `build/local_tests/test_pap
 ## Figures
 
 `paper/figures/make_fig2.py` → `fig_mechanism.pdf` (panels a–c).
+
+## Pending (pre-submission)
+
+- **§7.2 rel/abs ratios (0.166× / 3.101×):** still single-seed @ 13025; supports the common-mode-cancellation contribution claim. Before submission, run a multiseed pass—if ratios drift materially across seeds, soften the paper claim accordingly.

@@ -88,6 +88,8 @@ Mechanism closure for board-free body-centroid `p_B` identifiability:
 
 ## ⑥ Diagonal dual-LiDAR @ flight 戊 (seed 13025)
 
+> **[勘误 @ P1 multiseed]** 12/42 为 seed 13025 特例；N=10 显示两扇区统计相当 (29.7±9.7 / 29.0±10.8)，撤回几何各向异性论断，详见 `paper_supplementary_experiments.md`。
+
 **Geometry:** NE/SW posts (±25, ±25) m, baseline **70.7 m**, POI serial lock
 t∈[0,45)→NE, t∈[45,90)→SW. **NE-only** `poi_sector0_attitude_scale=0.35`.
 
@@ -210,6 +212,8 @@ assumption (simulation)*.
 ## Known issues (Phase 1 @ `3fb7ddf`)
 
 ### 1. 戊 SW ≈ 42 mm — true sector geometry, not estimator leak
+
+> **[勘误 @ P1 multiseed]** 12/42 为 seed 13025 特例；N=10 显示两扇区统计相当 (29.7±9.7 / 29.0±10.8)，撤回几何各向异性论断，详见 `paper_supplementary_experiments.md`。
 
 **Finding:** After Phase 0 gflags guard + Phase 1 per-sensor independent Stage-2,
 `test_multi_lidar_body_calibration` and `CalibrateMultiLidarBodyGated` reproduce
