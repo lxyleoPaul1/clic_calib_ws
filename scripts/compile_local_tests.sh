@@ -202,6 +202,22 @@ build_one test_phase15_joint_opt_audit \
   "${ROOT}/test/test_phase15_joint_opt_audit.cpp" \
   "${PHASE3_EXTRA[@]}"
 
+build_one test_paper_yawcv_sweep \
+  "${ROOT}/test/test_paper_yawcv_sweep.cpp" \
+  "${PHASE3_EXTRA[@]}"
+
+build_one test_paper_quadrant_fill \
+  "${ROOT}/test/test_paper_quadrant_fill.cpp" \
+  "${PHASE3_EXTRA[@]}"
+
+build_one test_paper_multiseed \
+  "${ROOT}/test/test_paper_multiseed.cpp" \
+  "${PHASE3_EXTRA[@]}"
+
+build_one test_paper_mirror_control \
+  "${ROOT}/test/test_paper_mirror_control.cpp" \
+  "${PHASE3_EXTRA[@]}"
+
 build_one test_uq_decomposition \
   "${ROOT}/test/test_uq_decomposition.cpp" \
   "${EST_SRCS[@]}" \
