@@ -218,6 +218,13 @@ build_one test_paper_mirror_control \
   "${ROOT}/test/test_paper_mirror_control.cpp" \
   "${PHASE3_EXTRA[@]}"
 
+build_one test_paper_relext_multiseed \
+  "${ROOT}/test/test_paper_relext_multiseed.cpp" \
+  "${PHASE3_EXTRA[@]}"
+
+build_one test_paper_prop1_nulldir \
+  "${ROOT}/test/test_paper_prop1_nulldir.cpp"
+
 build_one test_uq_decomposition \
   "${ROOT}/test/test_uq_decomposition.cpp" \
   "${EST_SRCS[@]}" \
