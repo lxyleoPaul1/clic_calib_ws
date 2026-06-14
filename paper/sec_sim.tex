@@ -10,6 +10,8 @@ decoupled orbit attitude), \flightW{} (POI tidal-lock dual-sector serial),
 diversity guard case).
 
 \subsection{Single-LiDAR near-field high-aspect profile}
+Table~\ref{tab:p15} reports the multiseed headline accuracy for the board-free
+single-LiDAR profile.
 \begin{table}[t]
   \centering
   \caption{Single-LiDAR board-free, near-field high-aspect profile (simulation).}
@@ -35,13 +37,15 @@ diversity guard case).
 Diverse aspect (yaw\_cv $\approx 0.78$, pitch\_std $\approx 16^\circ$) enables
 $\mathbf{p}_B$; centroid floor $\sim$56\,mm (mean), observed-mean $\sim$30\,mm
 (mean) with seed 13025 at 18.5\,mm.
-Centroid-only matches what a trajectory-matching pipeline \cite{ren2023trajmatch}
-would recover from the same detections---aligning raw cluster centroids to RTK
-without bias modeling (Sec.~\ref{sec:related}).
+Centroid-only is the simulation proxy for trajectory-matching-style baselines
+\cite{ren2023trajmatch}: it aligns raw cluster centroids to RTK without modeling the
+aspect-dependent bias field (Sec.~\ref{sec:related}).
 
 \subsection{Diagonal dual-LiDAR @ \flightW{}}
 Geometry: NE/SW posts at ($\pm$25, $\pm$25)\,m, baseline 70.7\,m, POI serial lock
 $t\in[0,45)\to$NE, $t\in[45,90)\to$SW.
+Table~\ref{tab:wu_dual} reports multiseed per-post errors and the anchor-only
+regression check.
 
 \begin{table}[!t]
   \centering
@@ -67,7 +71,7 @@ $t\in[0,45)\to$NE, $t\in[45,90)\to$SW.
 Across ten seeds the two diagonal sectors are statistically comparable
 (NE 29.7$\pm$9.7\,mm, SW 29.0$\pm$10.8\,mm); the difference (0.7\,mm) is far
 smaller than either standard deviation ($\sim$10\,mm).
-The 12/42\,mm split seen at the frozen regression anchor (seed 13025) falls within
+The split seen at the frozen regression anchor (seed 13025) falls within
 seed-to-seed variation and is not a systematic sector effect.
 Independent per-sensor Stage-2 solves still reproduce the anchor values at that seed.
 
@@ -76,6 +80,7 @@ We audit a $12$-dimensional extrinsic block $F_{\mathrm{ext}}$ (translation in
 meters, rotation in radians, local $SE(3)$ parameterization).
 $\lambda_{\min}$ is the smallest eigenvalue of the Schur-complement marginal
 information on this block (unitless in the chosen metric).
+Table~\ref{tab:lambda} contrasts the multi-layer and coplanar regimes.
 \begin{table}[t]
   \centering
   \caption{Coplanar ablation vs.\ multi-layer (simulation).}
@@ -98,6 +103,6 @@ Distinct from aspect bias--translation collinearity
 rank deficiency (Sec.~\ref{sec:mechanism_coplanar}).
 
 \subsection{Two-stage pipeline sanity (sphere-target configuration)}
-On the sphere-target sanity configuration (independent of board-free flights), the
+On the sphere-target sanity configuration (independent of board-free calibration), the
 two-stage pipeline converges to centimeter-level translation error in 50/50 trials;
 mean $|t_{LW}|$ error is 6.556\,mm (simulation).

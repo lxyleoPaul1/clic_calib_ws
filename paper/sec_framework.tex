@@ -13,10 +13,11 @@ We seek $\{T_{L_\ell W}\}$ and a consistent $T_{WB}(t)$ without calibration boar
 \subsection{Stage-1: RTK-anchored trajectory fitting}
 Stage-1 estimates a continuous-time body trajectory $\hat{T}_{WB}(t)$ from RTK
 position measurements (and optional attitude streams).
-At 10\,Hz, Prais--Winsten differenced whitening decorrelates serial RTK residuals
-(27.3\,mm antenna RMSE vs.\ 36.0\,mm for uniform AR(1) scaling; simulation);
-at 0.5\,Hz independent epochs disable PW automatically ($\Delta t\geq 0.2$\,s).
+At 10\,Hz, Prais--Winsten whitening improves antenna RMSE to 27.3\,mm (36.0\,mm for
+uniform AR(1) scaling; $\sim$125\,mm for naive inflation; simulation); at 0.5\,Hz it
+disables automatically ($\Delta t\geq 0.2$\,s).
 The output trajectory is \textbf{frozen} before any extrinsic refinement.
+Fig.~\ref{fig:framework} summarizes this data flow.
 
 \subsection{Stage-2: frozen-trajectory extrinsic refinement}
 Given frozen $\hat{T}_{WB}(t)$, Stage-2 minimizes a nonlinear least-squares cost over
@@ -35,9 +36,9 @@ is composed post hoc:
   = \hat{T}_{L_{\mathrm{SW}}W}\,\hat{T}_{L_{\mathrm{NE}}W}^{-1}.
   \label{eq:rel_compose}
 \end{equation}
-In simulation, end-to-end multi-post NE/SW errors match per-sensor solo solves at
-the frozen regression anchor (seed 13025: 12.15 / 42.04\,mm); across ten seeds the
-two sectors are statistically comparable (Sec.~\ref{sec:sim}).
+In simulation, end-to-end multi-post errors match per-sensor solo solves; across ten
+seeds the NE/SW sectors are statistically comparable (Sec.~\ref{sec:sim}), with the
+frozen anchor reported only as a regression check.
 
 \begin{figure}[!t]
   \centering

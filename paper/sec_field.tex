@@ -3,7 +3,8 @@
 
 \textbf{Status: structured placeholders only --- no field numbers in this draft.}
 
-This section defines what we will measure on real intersection data.
+This section defines the field protocol that will convert the simulation-only claims
+above into hardware evidence once real intersection data are available.
 Sphere targets are used \textbf{only} as an independent ground-truth ruler to score
 board-free error; they are \textbf{not} a calibration fallback.
 
@@ -17,10 +18,14 @@ Survey sphere centers $\Rightarrow$ truth; run board-free once; report
 $\Delta$trans, $\Delta$rot, center-reg vs.\ spheres.
 
 \subsection{Results (placeholder)}
+Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext} and
+Figs.~\ref{fig:field_layout}--\ref{fig:field_bias} are placeholders for the required
+hardware evidence; no field numbers are claimed in this draft.
 
 \begin{table}[!t]
   \centering
-  \caption{Field board-free accuracy vs.\ sphere-anchor ground truth.}
+  \caption{Field board-free accuracy vs.\ sphere-anchor ground truth (placeholder;
+  spheres are evaluation rulers only, not calibration inputs).}
   \label{tab:field_boardfree}
   \footnotesize
   \colfit{%
@@ -40,7 +45,9 @@ $\Delta$trans, $\Delta$rot, center-reg vs.\ spheres.
 
 \begin{table*}[!t]
   \centering
-  \caption{Field test of coherent-bias cancellation in relative extrinsics (vs.\ simulation 0.166$\times$).}
+  \caption{Field test of coherent-bias cancellation in relative extrinsics
+  (placeholder; simulation reference is 0.166$\times$ under a coherent-bias
+  assumption).}
   \label{tab:field_relext}
   \footnotesize
   \pagefit{%
@@ -75,7 +82,8 @@ $\Delta$trans, $\Delta$rot, center-reg vs.\ spheres.
   \centering
   \colfit{\fbox{\parbox{\linewidth}{\centering\vspace{10mm}
     \footnotesize\TODO{campaign A: intersection layout + flight path}\vspace{10mm}}}}
-  \caption{Field deployment schematic (placeholder).}
+  \caption{Field deployment schematic (placeholder): diagonal Ruby posts, UAV POI
+  sectors, sphere-anchor evaluation points, and intersection layout.}
   \label{fig:field_layout}
 \end{figure}
 
@@ -83,6 +91,7 @@ $\Delta$trans, $\Delta$rot, center-reg vs.\ spheres.
   \centering
   \colfit{\fbox{\parbox{\linewidth}{\centering\vspace{10mm}
     \footnotesize\TODO{campaign B: $u_B$--bias scatter vs Fig.~\ref{fig:mechanism}a}\vspace{10mm}}}}
-  \caption{Field aspect--bias diagnostic (placeholder).}
+  \caption{Field aspect--bias diagnostic (placeholder): real $u_B$--bias scatter to
+  compare against the simulation mechanism in Fig.~\ref{fig:mechanism}(a).}
   \label{fig:field_bias}
 \end{figure}

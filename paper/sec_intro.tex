@@ -1,40 +1,38 @@
-% DRAFT — 待与作者打磨 oral 开篇张力，勿直接定稿
-
 \section{Introduction}
 \label{sec:intro}
 
-One would expect the accuracy of a board-free calibration to be governed by LiDAR
-range noise and the centimeter-level fixes of RTK.
+One would expect board-free calibration accuracy to be set by LiDAR range noise and
+centimeter-level RTK fixes.
 It is not.
-Accuracy is instead set by a quantity rarely treated as a design variable: how
-\emph{diversely the UAV attitude is excited} during the calibration flight---\emph{board-free
-calibration accuracy is determined by flight attitude diversity, not by the sensor.}
+It is set by a quantity rarely treated as a design variable: how \emph{diversely the
+UAV attitude is excited} during the calibration flight.
+In board-free calibration, flight attitude diversity, not sensor grade, determines
+whether centimeter-level extrinsics are attainable.
 
 We use \emph{board-free} to mean no dedicated calibration target beyond the UAV
 airframe itself---no boards, spheres, or surveyed markers in the calibration loop
 (spheres appear only as evaluation rulers, Sec.~\ref{sec:field}).
 
-The body centroid used for board-free alignment is not a fixed offset.
+The body centroid used for alignment is not a fixed offset.
 It is an \emph{aspect-dependent bias vector field} on the relative bearing $u_B$.
-When aspect is concentrated, this field aligns with extrinsic translation until the
-two become \emph{indistinguishable}: a structural degeneracy that silently corrupts
-estimates ($\sim$211\,mm in simulation) and that joint lever-arm optimization cannot
-remove.
-Only active 3D attitude excitation---sector POI tidal-lock combined with pitch and
-yaw diversity---decorrelates the field so its world-frame mean can be estimated and
-subtracted, recovering centimeter-level accuracy ($\sim$30\,mm mean$\pm$std over
-seeds in simulation; best-seed anchor 18.5\,mm).
+When aspect and attitude are concentrated, this field becomes collinear with
+extrinsic translation: a structural degeneracy that silently corrupts estimates
+($\sim$211\,mm in simulation) and that joint lever-arm optimization cannot remove.
+Active 3D attitude excitation---sector POI tidal-lock plus pitch and yaw
+diversity---decorrelates the field, makes its observed mean estimable, and recovers
+centimeter-level accuracy ($\sim$30\,mm mean$\pm$std over seeds in simulation;
+best-seed anchor 18.5\,mm).
 In the zero-diversity limit, extrinsic translation is strictly unidentifiable
-(Sec.~\ref{sec:mechanism_identifiability}); attitude diversity restores
-identifiability and accuracy improves monotonically with it
-(Fig.~\ref{fig:mechanism}(c)).
+(Sec.~\ref{sec:mechanism_identifiability}); with increasing attitude diversity,
+identifiability and accuracy recover smoothly (Fig.~\ref{fig:mechanism}(c)).
 Active 3D attitude excitation is therefore a \textbf{prerequisite} for unbiased
-board-free calibration rather than an optional refinement.
+board-free calibration.
 
 Cooperative perception at urban intersections increasingly relies on multiple
 \textbf{roadside} LiDARs on diagonal posts with $\sim$70\,m baselines and negligible
 field-of-view overlap---settings where calibration boards and shared views are
 impractical.
+At these baselines, extrinsic errors directly affect fusion and association.
 A UAV carrying RTK only (no onboard LiDAR) flies through the combined visibility of
 those fixed sensors; each roadside LiDAR observes the UAV hull, enabling
 \emph{board-free} calibration from body point clouds alone.
@@ -45,22 +43,22 @@ of sensor grade.
 \subsection{Contributions}
 We contribute:
 \begin{enumerate}
-  \item A \textbf{separable two-stage framework}: Stage-1 fits an RTK-anchored UAV
-    trajectory $T_{WB}(t)$; Stage-2 freezes the trajectory and calibrates each
-    roadside LiDAR pose $T_{L_\ell W}$ in an independent solve---enabling diagonal
-    multi-post deployment with zero FOV overlap and no UAV-mounted sensors.
-  \item A \textbf{board-free identifiability mechanism} (core contribution): we show
-    that aspect-dependent centroid bias and extrinsic translation become collinear in
-    the Fisher information under concentrated attitude, yielding a structural
-    non-identifiability that no joint estimator can break; active 3D attitude excitation
+  \item We implement a \textbf{separable two-stage framework}: Stage-1 fits an
+    RTK-anchored UAV trajectory $T_{WB}(t)$, and Stage-2 freezes that trajectory to
+    calibrate each roadside LiDAR pose $T_{L_\ell W}$ in an independent solve,
+    enabling diagonal multi-post deployment with zero FOV overlap and no UAV-mounted
+    sensors.
+  \item We identify the \textbf{board-free observability mechanism}: aspect-dependent
+    centroid bias and extrinsic translation become collinear under concentrated
+    attitude, causing structural non-identifiability; active 3D attitude excitation
     restores identifiability, and an aspect gate provides a principled fallback when
     excitation is insufficient (simulation).
-  \item A \textbf{relative-extrinsic common-mode dichotomy}: under a coherent systematic
-    RTK bias assumption, $\mathrm{Cov}(T_{\mathrm{rel}})$ scales as 0.166$\times$
-    absolute covariance, whereas white per-epoch noise composes at 3.101$\times$
-    (simulation, scoped).
+  \item We quantify a \textbf{relative-extrinsic common-mode dichotomy}: under a
+    coherent systematic RTK bias assumption, $\mathrm{Cov}(T_{\mathrm{rel}})$ scales
+    as 0.166$\times$ absolute covariance, whereas white per-epoch noise composes at
+    3.101$\times$ (simulation, scoped).
 \end{enumerate}
 
-\textbf{Sphere targets (scope boundary).}
-Retroreflective spheres score board-free error in field experiments only; they are
-not a calibration fallback (Sec.~\ref{sec:field}).
+\textbf{Scope boundary.}
+Retroreflective spheres score field error only; they are not a calibration fallback
+(Sec.~\ref{sec:field}).

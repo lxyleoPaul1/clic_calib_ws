@@ -3,12 +3,12 @@
 
 We presented a separable RTK-anchored framework for board-free multi-LiDAR extrinsic
 calibration at intersections with negligible FOV overlap.
-The central result is an identifiability argument: aspect-dependent body-centroid bias
-becomes collinear with extrinsic translation under concentrated attitude, producing
-structural non-identifiability ($\sim$211\,mm in simulation) that no joint optimizer
-can break; active 3D attitude excitation restores identifiability and centimeter-level
-accuracy ($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor
-18.5\,mm).
+The central result is an identifiability argument: under concentrated aspect and
+attitude, aspect-dependent body-centroid bias is collinear with extrinsic translation,
+producing structural non-identifiability ($\sim$211\,mm in simulation) that no joint
+optimizer can break.
+Active 3D attitude excitation restores identifiability and centimeter-level accuracy
+($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor 18.5\,mm).
 An aspect gate operationalizes this insight by rolling back when excitation is
 insufficient.
 Relative extrinsic uncertainty under coherent RTK bias can be tighter than absolute
@@ -26,12 +26,18 @@ Sec.~\ref{sec:field} and remains to be filled.
   \item \textbf{Gate threshold} ($0.65$) is a conservative simulation operating point
     on a smooth identifiability transition (Fig.~\ref{fig:mechanism}(c)), not a
     phase-transition kink; field transfer requires validation.
-  \item \textbf{RTK quality} and wind/flight-execution errors are not fully modeled.
+  \item \textbf{Ground-truth chain:} field accuracy will depend on sphere survey
+    quality, RTK logs, and time synchronization; Sec.~\ref{sec:field} intentionally
+    keeps these cells open until measured.
+  \item \textbf{RTK quality and execution:} drift, colored noise, wind, and POI
+    tracking errors are only partially modeled.
   \item \textbf{Field sign-off} is pending (Sec.~\ref{sec:field}); all accuracy claims
     outside Sec.~\ref{sec:field} are simulation-scoped.
 \end{itemize}
 
 \subsection{Future work}
 Field campaigns A--D (Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext});
-road-network multi-LiDAR graphs; online FIM / adaptive flight planning with fresh
-estimator scopes per mission.
+road-segment and city-scale multi-LiDAR graphs; a unified target framework in which
+spheres or boards may become calibration methods for depot-style setups (orthogonal
+to this paper's board-free claim); and online FIM / adaptive flight planning with
+fresh estimator scopes per mission.

@@ -43,7 +43,7 @@ $\mathbf{p}_B$ has a well-defined scalar-vector target rather than an undefined
 mixture over aspects.
 
 \paragraph{Attitude knob (separate bias from translation).}
-Each epoch contributes a world-frame bias driver
+Each epoch contributes a LiDAR-frame bias driver
 \begin{equation}
   \mathbf{v}_i = R_{LW}\,R_{WB}(t_i)\,\bar{\mathbf{b}},
   \label{eq:frame_bias}
@@ -64,19 +64,29 @@ Consider the segment mean
 \label{prop:collinear}
 Let the body-frame bias be constant ($\bar{\mathbf{b}}$, ensured by aspect control)
 and suppose $R_{WB}(t_i)\equiv\bar{R}_{WB}$ for all $i$.
-Then for any $\bar{\mathbf{b}}$ there exists
-$\delta\mathbf{t}_{LW}=-R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ such that replacing
-$\mathbf{t}_{LW}$ by $\mathbf{t}_{LW}+\delta\mathbf{t}_{LW}$ leaves all centroid
-residuals unchanged; the pair $(\bar{\mathbf{b}},\mathbf{t}_{LW})$ is unidentifiable
-along this direction and the Fisher information restricted to it is singular.
+Then the perturbation
+\[
+  \delta\bar{\mathbf{b}}=\boldsymbol{\eta},\qquad
+  \delta\mathbf{t}_{LW}=-R_{LW}\bar{R}_{WB}\boldsymbol{\eta}
+\]
+leaves all first-order centroid residuals unchanged for any
+$\boldsymbol{\eta}\in\mathbb{R}^3$.
+The pair $(\bar{\mathbf{b}},\mathbf{t}_{LW})$ is therefore unidentifiable along this
+three-dimensional subspace, and the corresponding Fisher information block is
+singular.
 \end{proposition}
 
 \begin{proof}[Sketch]
-Under fixed $R_{WB}$, $\bar{\mathbf{v}}=R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ is a
-constant world offset in the residual.
-Adding $\delta\mathbf{t}_{LW}=-R_{LW}\bar{R}_{WB}\bar{\mathbf{b}}$ applies the
-identical rigid shift to the projected cloud; no optimizer can distinguish bias from
-translation without breaking either premise.
+With fixed attitude, the predicted centroid in LiDAR coordinates contains the term
+\[
+  R_{LW}R_{WB}\bar{\mathbf{b}}+\mathbf{t}_{LW}.
+\]
+Substituting $(\bar{\mathbf{b}}+\boldsymbol{\eta},
+\mathbf{t}_{LW}-R_{LW}\bar{R}_{WB}\boldsymbol{\eta})$ leaves this term exactly
+unchanged at every epoch.
+Thus the Jacobian has a null direction that trades body-frame bias against LiDAR
+translation; no estimator can distinguish the two without breaking the locked-aspect
+or locked-attitude premise.
 \end{proof}
 
 Proposition~\ref{prop:collinear} is the \textbf{singular limit} as $R_{WB}$
@@ -92,8 +102,8 @@ collinearity when both knobs are ``off.''
 
 \paragraph{Diverse attitude restores identifiability.}
 When $\{R_{WB}(t_i)\}$ spans sufficient pitch and yaw, epochs rotate
-$\bar{\mathbf{b}}$ into different world directions; summation averages horizontal
-components ($\sim$220\,mm $\to$ $\sim$51\,mm in simulation).
+$\bar{\mathbf{b}}$ into different LiDAR-frame directions; summation averages
+horizontal components ($\sim$220\,mm $\to$ $\sim$51\,mm in simulation).
 A body-$Z$ residual $\sim$19.5\,mm remains (yaw cannot average it); observed-mean
 $\mathbf{p}_B$ removes it explicitly.
 In the zero-diversity limit the extrinsic translation is strictly unidentifiable
@@ -136,6 +146,7 @@ The identifiability picture above is supported by frozen simulation profiles
 
 \subsubsection{Aspect--bias coupling (\flightD{})}
 Wide $u_B$ sweep with decoupled orbit attitude:
+Table~\ref{tab:ding_correlation} shows that the empirical bias varies with aspect.
 
 \begin{table}[!t]
   \centering
@@ -188,6 +199,8 @@ Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimut
 \end{table*}
 
 \subsubsection{Concentrated vs.\ diverse aspect}
+Table~\ref{tab:concentrated} isolates the concentrated-aspect failure mode and the
+gain from observed-mean refinement.
 \begin{table}[!t]
   \centering
   \caption{Concentrated vs.\ diverse aspect (simulation).}
@@ -211,10 +224,12 @@ Opposite signs on $x$ vs.\ $y$ indicate near-sinusoidal coupling to $u_B$ azimut
   {\footnotesize $^\P$Mean$\pm$std over 10 seeds; anchor 13025: 18.5\,mm.}
 \end{table}
 
-\subsubsection{World-frame averaging under attitude diversity}
+\subsubsection{Frame-wise averaging under attitude diversity}
+Table~\ref{tab:frame_norm} shows how attitude diversity reduces the mean projected
+bias driver.
 \begin{table}[t]
   \centering
-  \caption{World-frame mean bias norm vs.\ flight regime (simulation).}
+  \caption{LiDAR-frame mean bias norm vs.\ flight regime (simulation).}
   \label{tab:frame_norm}
   \begin{tabular}{lccc}
     \toprule
@@ -235,7 +250,7 @@ Tidal-lock audit (simulation): near-field high-aspect profile yaw$-$orbit std
   \caption{Board-free mechanism (simulation).
   (a)~Per-frame body-frame bias vs.\ $u_B$ azimuth on \flightD{} (near-sinusoidal
   coupling; $r\approx\pm 0.5$--$0.7$).
-  (b)~Horizontal norm of the world-frame mean bias driver
+  (b)~Horizontal norm of the LiDAR-frame mean bias driver
   $\|\mathrm{mean}(\mathbf{v})\|_h$ under concentrated vs.\ diverse attitude
   (220$\to$51\,mm) with $\sim$19.5\,mm vertical residual.
   (c)~$\|T_{LW}$ translation error vs.\ measured yaw\_cv (8 seeds per level);

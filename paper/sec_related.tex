@@ -1,5 +1,3 @@
-% DRAFT — 待补精确 bibkey + 与作者确认卡位
-
 \section{Related Work}
 \label{sec:related}
 
@@ -7,41 +5,39 @@
 Continuous-time trajectory representations coupled with batch factor-graph
 optimization are standard for multi-sensor extrinsic calibration
 \cite{furgale2013unified,rehder2016kalibr}.
-Our Stage-1 trajectory fit follows this lineage but \emph{separates} trajectory
-estimation from per-sensor Stage-2 extrinsic refinement, avoiding cross-sensor
-optimization coupling that can leak state between LiDAR solves.
+We use this lineage only for RTK-anchored trajectory fitting; the distinction is the
+deliberate separation between shared Stage-1 and independent per-LiDAR Stage-2 solves.
 
 \subsection{Roadside, V2X, and multi-LiDAR systems}
 Infrastructure sensing at intersections motivates long-baseline, low-overlap
 multi-LiDAR layouts \cite{yu2022dairv2x}.
 Prior work often assumes overlapping views or shared calibration targets.
-We address the diagonal-post regime ($\sim$70\,m baseline, negligible FOV overlap)
-with UAV-RTK anchoring and per-sensor separable solves.
+This paper targets the diagonal-post regime ($\sim$70\,m baseline, negligible FOV
+overlap) via UAV-RTK anchoring and separable solves.
 
 \subsection{Target-based vs.\ targetless calibration}
 Target-based LiDAR--camera and LiDAR--IMU calibration remains the industrial default
 \cite{furgale2013unified,rehder2016kalibr}.
 Targetless methods exploit scene structure or motion constraints; body-centric
 board-free calibration uses the vehicle hull as a primitive without a physical board.
-\textbf{Distinction:} we do not propose sphere targets as an alternative pipeline;
-spheres are reserved for field ground-truth evaluation only (Sec.~\ref{sec:field}).
+Here the UAV hull is the calibration target; spheres are field evaluation rulers only,
+not a fallback calibration pipeline (Sec.~\ref{sec:field}).
 
 \subsection{UAV-assisted and cooperative calibration}
 UAV platforms with RTK positioning enable mobile anchoring of roadside sensors.
 Related trajectory-matching approaches align sensor frames via shared motion
 \cite{ren2023trajmatch}; centroid-only board-free paths correspond to what such a
 pipeline would recover from the same detections without bias modeling.
-Our contribution is orthogonal: even with a perfect RTK trajectory, board-free
-calibration fails without sufficient attitude excitation---a \emph{flight-design}
-requirement not captured by trajectory matching alone.
+Our difference is the failure mechanism: even with a perfect trajectory, board-free
+calibration fails without attitude excitation.
 
 \subsection{Relation to prior work on degeneracy}
 Anonymous prior work on coplanar multi-LiDAR setups identifies \emph{geometric rank
 deficiency} in joint Fisher information when sensors and the body path are nearly
 coplanar (simulation $\lambda_{\min}\approx 0$ vs.\ multi-layer $\lambda_{\min}=1.074$;
 Sec.~\ref{sec:sim}).
-\textbf{This paper addresses a different degeneracy:} aspect-concentrated body-centroid
-bias aligns with extrinsic translation ($\sim$211\,mm silent pollution in simulation),
-which joint lever-arm optimization cannot remove (Sec.~\ref{sec:mechanism_identifiability}).
-The two failure modes are complementary: coplanar geometry vs.\ aspect--attitude
-bias--translation collinearity (Sec.~\ref{sec:mechanism_coplanar}).
+This paper addresses a different near-null direction: aspect-concentrated centroid
+bias aligns with translation ($\sim$211\,mm in simulation), and joint lever-arm
+optimization cannot remove it (Sec.~\ref{sec:mechanism_identifiability}).
+Thus coplanar geometry and board-free bias--translation collinearity are distinct
+failure modes (Sec.~\ref{sec:mechanism_coplanar}).

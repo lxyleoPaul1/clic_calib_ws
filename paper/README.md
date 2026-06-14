@@ -41,11 +41,11 @@ bash build.sh
 | `sec_framework.tex` | Written (simulation architecture) |
 | `sec_mechanism.tex` | Written (oral core, simulation numbers) |
 | `sec_relext.tex` | Written (§7.2, simulation + scope) |
-| `sec_pw.tex` | Written (simulation) |
+| `sec_pw.tex` | Archived text; PW summary merged into `sec_framework.tex` |
 | `sec_sim.tex` | Written (frozen baseline numbers) |
 | `sec_field.tex` | Placeholders only (`\TODO`) |
-| `sec_intro.tex` | DRAFT |
-| `sec_related.tex` | DRAFT |
+| `sec_intro.tex` | Submission-polish draft |
+| `sec_related.tex` | Submission-polish draft |
 | `sec_conclusion.tex` | Written + future work |
 
 See `PLACEHOLDERS.md` and `figure_table_plan.md`.
@@ -61,5 +61,5 @@ See `PLACEHOLDERS.md` and `figure_table_plan.md`.
 
 ## Frozen baseline refs
 
-Docs: `doc/board_free_mechanism.md`, `doc/board_free_results_frozen.md`.
-Commits: `f03c399`, `3fb7ddf`, `7f5c27c`.
+Docs: `doc/board_free_mechanism.md`, `doc/board_free_results_frozen.md`
+(internal only; do not cite revision history in the double-blind paper).

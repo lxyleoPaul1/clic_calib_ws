@@ -9,27 +9,12 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 
 ---
 
-## `sec_related.tex` (citation placeholders)
+## Citation verification placeholders
 
 | Location | Wait for | Fills |
 |----------|----------|-------|
-| Roadside V2X | Survey or target paper bibkey | `\TODO{cite: roadside V2X multi-LiDAR calibration}` |
-| Target survey | Survey bibkey | `\TODO{cite: target-based LiDAR extrinsic calibration survey}` |
-| UAV RTK | UAV calib paper bibkey | `\TODO{cite: UAV RTK-assisted sensor calibration}` |
-| TrajMatch | Trajectory-matching paper | `\TODO{cite: trajectory-matching extrinsic calibration}` |
-| Coplanar FIM | Anonymous Paper I bibkey | `\TODO{cite: prior coplanar multi-LiDAR FIM degeneracy}` |
-
-## `sec_framework.tex`
-
-| Location | Wait for | Campaign | Fills |
-|----------|----------|----------|-------|
-| Fig. 1 caption | Publication-quality framework diagram | N/A (design) | `fig_framework.pdf` |
-
-## `sec_mechanism.tex`
-
-| Location | Wait for | Campaign | Fills |
-|----------|----------|----------|-------|
-| Fig. 2 fbox | Mechanism composite figure | simulation export + later field overlay | `fig_mechanism.pdf` |
+| `refs.bib:furgale2013unified` | Verify final IROS page range / DOI before submission | do not expose TODO text in bibliography |
+| Anonymous coplanar FIM reference | Final double-blind citation key and bibliography entry | prior work positioning in Related Work |
 
 ## `sec_field.tex`
 

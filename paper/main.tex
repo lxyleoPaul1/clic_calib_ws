@@ -26,7 +26,7 @@
 \newcommand{\colfit}[1]{\adjustbox{max width=\linewidth}{#1}}
 \newcommand{\pagefit}[1]{\adjustbox{max width=\textwidth}{#1}}
 
-% Simulation flight labels (repo: \u4e01/\u620a/\u7532/\u4e59)
+% Simulation flight labels
 \newcommand{\flightD}{Flight-D}
 \newcommand{\flightW}{Flight-W}
 \newcommand{\flightJ}{Flight-J}
@@ -42,19 +42,21 @@ Active Attitude Excitation as a Necessary Condition}
 \maketitle
 
 \begin{abstract}
-Board-free extrinsic calibration of \textbf{roadside} LiDARs---using a flying UAV hull
-as target, with no onboard LiDAR---is governed not by sensor noise but by
-\emph{flight attitude diversity}.
-The empirical body centroid is an aspect-dependent bias vector field on the relative
-bearing sphere $u_B$; under concentrated aspect it becomes indistinguishable from
-extrinsic translation and silently pollutes estimates ($\sim$211\,mm in simulation),
-while active 3D attitude excitation restores identifiability and centimeter-level
-accuracy ($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor
-18.5\,mm).
+Board-free extrinsic calibration of \textbf{roadside} LiDARs uses a flying UAV hull
+as the target, with no onboard LiDAR or calibration board.
+Its accuracy is governed not by LiDAR range noise but by \emph{flight attitude
+diversity}.
+The empirical body centroid forms an aspect-dependent bias vector field on the
+relative bearing sphere $u_B$; under concentrated aspect and attitude, this bias
+becomes indistinguishable from extrinsic translation and silently pollutes estimates
+($\sim$211\,mm in simulation).
+Active 3D attitude excitation restores identifiability and centimeter-level accuracy
+($\sim$30\,mm mean$\pm$std over seeds in simulation; best-seed anchor 18.5\,mm).
 We present a separable two-stage estimator with per-LiDAR independent Stage-2 solves
 for zero-FOV-overlap diagonal deployment, an aspect gate that falls back when
-excitation is insufficient, and a relative-extrinsic covariance analysis showing
-coherent RTK bias cancels in the relative frame (0.166$\times$ in simulation, scoped).
+excitation is insufficient, and a relative-extrinsic covariance analysis showing that
+coherent RTK bias can cancel in the relative frame (0.166$\times$ in simulation under
+a scoped common-mode assumption).
 Field validation on a diagonal dual-Ruby intersection is structured but pending.
 \end{abstract}
 

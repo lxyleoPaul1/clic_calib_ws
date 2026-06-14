@@ -12,14 +12,17 @@ We analyze how RTK error modes propagate through independent Stage-2 solves
 Relative transform is composed post hoc (Sec.~\ref{sec:framework}).
 We report:
 \begin{itemize}
-  \item \textbf{center-reg (obs)} --- headline metric, rotation-dominated, no 70.7\,m
-    lever amplification (40.9\,mm, simulation);
-  \item rel-trans (obs) --- lever-amplified metric (49.0\,mm, simulation; reported
-    for completeness).
+  \item \textbf{center-reg (obs)} --- headline fusion metric near the observed
+    intersection center, avoiding artificial 70.7\,m lever amplification
+    (40.9\,mm, simulation);
+  \item \textbf{rel-trans (obs)} --- translation of the relative transform itself,
+    reported for completeness because it includes baseline lever amplification
+    (49.0\,mm, simulation).
 \end{itemize}
 
 \subsection{RTK perturbation dichotomy (simulation)}
 Monte Carlo ($N{=}20$, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
+Table~\ref{tab:relext_mc} separates coherent and white RTK perturbations.
 
 \begin{table*}[!t]
   \centering
@@ -38,14 +41,14 @@ Monte Carlo ($N{=}20$, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
   }
 \end{table*}
 
-\textbf{Claims (simulation, scoped):} under coherent systematic bias, relative
-covariance tightens (0.166$\times$); white per-epoch noise composes (3.101$\times$).
+\textbf{Claims (simulation, scoped):} coherent systematic bias tightens relative
+covariance (0.166$\times$); independent white noise composes (3.101$\times$).
 
 \subsection{Temporal overlap at sector handoff (simulation)}
 Serial \flightW{}: 0.166$\times$; +10\,s overlap at handoff: 0.15$\times$ (simulation).
 Brief overlap can tighten relative UQ without spatial FOV overlap.
 
-\subsection{Scope boundary (mandatory)}
+\subsection{Scope boundary}
 The 0.166$\times$ ratio depends on a \textbf{rigid global bias injection}
 ($\sigma_h{=}50$\,mm, $\sigma_v{=}100$\,mm, one draw applied identically to every
 epoch in a segment).
