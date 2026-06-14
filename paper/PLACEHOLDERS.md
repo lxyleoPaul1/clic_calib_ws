@@ -13,7 +13,6 @@ Run: `rg -c '\\TODO' paper/*.tex` after changes.
 
 | Location | Wait for | Fills |
 |----------|----------|-------|
-| `refs.bib:furgale2013unified` | Verify final IROS page range / DOI before submission | do not expose TODO text in bibliography |
 | Anonymous coplanar FIM reference | Final double-blind citation key and bibliography entry | prior work positioning in Related Work |
 
 ## `sec_field.tex`

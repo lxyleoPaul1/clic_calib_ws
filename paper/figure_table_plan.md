@@ -22,7 +22,7 @@ Current LaTeX: Fig. 1 = TikZ; Fig. 2 = generated PDF; Fig. 3/4 = field placehold
 | `tab:degeneracy_2x2` | mechanism | $u_B \times R_{WB}$ | simulation |
 | `tab:concentrated` | mechanism | 211 mm / 20 mm ablation | simulation |
 | `tab:frame_norm` | mechanism | 220→51 mm | simulation |
-| `tab:relext_mc` | relext | 0.166× / 3.101× | simulation |
+| `tab:relext_mc` | relext | coherent 0.247±0.12× / white 3.05±0.16× | simulation |
 | `tab:p15` | sim | P1.5 mean±std: 55.7±10.7 / 30.0±13.0 / 26.9±10.1 mm | simulation |
 | `tab:wu_dual` | sim | \flightW{} NE/SW statistically comparable: 29.7±9.7 / 29.0±10.8 mm | simulation |
 | `tab:lambda` | sim | λ_min 1.07357 vs ≈0 | simulation |

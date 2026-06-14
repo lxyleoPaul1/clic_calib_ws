@@ -46,7 +46,7 @@ hardware evidence; no field numbers are claimed in this draft.
 \begin{table*}[!t]
   \centering
   \caption{Field test of coherent-bias cancellation in relative extrinsics
-  (placeholder; simulation reference is 0.166$\times$ under a coherent-bias
+  (placeholder; simulation reference is $\approx$0.25$\times$ under a coherent-bias
   assumption).}
   \label{tab:field_relext}
   \footnotesize
@@ -55,7 +55,7 @@ hardware evidence; no field numbers are claimed in this draft.
     \toprule
     Metric & Sim. & Field \\
     \midrule
-    rel/abs trace ratio & 0.166$\times$ & \TODO{campaign D: rel/abs ratio} \\
+    rel/abs trace ratio & 0.247$\pm$0.12$\times$ & \TODO{campaign D: rel/abs ratio} \\
     $r(\|\delta p\|_{\mathrm{NE}},\|\delta p\|_{\mathrm{SW}})$ & 1.00 & \TODO{campaign D: correlation} \\
     center-reg residual & --- & \TODO{campaign D: c-reg residual} \\
   \bottomrule
@@ -71,7 +71,8 @@ hardware evidence; no field numbers are claimed in this draft.
   \item \textbf{Board-free field accuracy:} centimeter-level per-post error at
     intersection scale (both diagonal sectors)?
     \TODO{field campaign A: Table~\ref{tab:field_boardfree} cells}
-  \item \textbf{Coherent-bias residual:} is field rel/abs ratio weaker than 0.166$\times$?
+  \item \textbf{Coherent-bias residual:} is field rel/abs attenuation weaker than
+    the simulation $\approx$0.25$\times$ ratio?
     \TODO{field campaign D: Table~\ref{tab:field_relext} cells}
   \item \textbf{POI flight feasibility:} can operators execute tidal-lock sectors
     without degrading RTK or safety margins?

@@ -21,7 +21,7 @@ We report:
 \end{itemize}
 
 \subsection{RTK perturbation dichotomy (simulation)}
-Monte Carlo ($N{=}20$, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
+Monte Carlo ($N{=}20$ per seed, 10 seeds, \flightW{} 0.5\,Hz, independent Stage-2 per LiDAR):
 Table~\ref{tab:relext_mc} separates coherent and white RTK perturbations.
 
 \begin{table*}[!t]
@@ -34,26 +34,33 @@ Table~\ref{tab:relext_mc} separates coherent and white RTK perturbations.
     \toprule
     Injection & rel/abs & $r(\|\delta p\|)$ & Mechanism \\
     \midrule
-    White noise (per epoch) & \textbf{3.101}$\times$ & 0.40 & uncorrelated $\delta p$ stacks \\
-    Coherent system bias & \textbf{0.166}$\times$ & 1.00 & common-mode cancels \\
+    White noise (per epoch) & \textbf{3.05$\pm$0.16}$\times$ & 0.40$\pm$0.00 & uncorrelated $\delta p$ stacks \\
+    Coherent system bias & \textbf{0.247$\pm$0.12}$\times$ & 1.00$\pm$0.00 & common-mode attenuates \\
     \bottomrule
   \end{tabular}%
   }
+  \vspace{1mm}
+
+  {\footnotesize Mean$\pm$std over 10 seeds (13025--13034);
+  frozen anchor @ seed 13025: coherent 0.166$\times$, white 3.101$\times$.}
 \end{table*}
 
-\textbf{Claims (simulation, scoped):} coherent systematic bias tightens relative
-covariance (0.166$\times$); independent white noise composes (3.101$\times$).
+\textbf{Claims (simulation, scoped):} coherent systematic bias is substantially
+attenuated in the relative frame ($\approx$0.25$\times$; 0.247$\pm$0.12 over 10
+seeds, all $<1$); independent white noise composes at $\approx$3.05$\times$
+(3.05$\pm$0.16).
 
 \subsection{Temporal overlap at sector handoff (simulation)}
-Serial \flightW{}: 0.166$\times$; +10\,s overlap at handoff: 0.15$\times$ (simulation).
+Serial \flightW{} coherent-bias ratio: 0.247$\pm$0.12$\times$; +10\,s overlap at
+handoff: 0.15$\times$ at the anchor seed (simulation).
 Brief overlap can tighten relative UQ without spatial FOV overlap.
 
 \subsection{Scope boundary}
-The 0.166$\times$ ratio depends on a \textbf{rigid global bias injection}
+The coherent-bias attenuation depends on a \textbf{rigid global bias injection}
 ($\sigma_h{=}50$\,mm, $\sigma_v{=}100$\,mm, one draw applied identically to every
 epoch in a segment).
 Real RTK includes drift, colored noise, and lever-arm coupling---\textbf{not} perfect
 common-mode.
-\textbf{Do not cite 0.166$\times$ as a field guarantee.}
+\textbf{Do not cite the simulation ratio as a field guarantee.}
 Field cancellation is expected to be \textbf{weaker}; hardware relative-extrinsic
 residual under coherent bias is the empirical test (Sec.~\ref{sec:field}).
