@@ -8,14 +8,45 @@ above into hardware evidence once real intersection data are available.
 Sphere targets are used \textbf{only} as an independent ground-truth ruler to score
 board-free error; they are \textbf{not} a calibration fallback.
 
-\subsection{Experimental setup (placeholder)}
-Diagonal dual Ruby posts ($\sim$70\,m baseline), DJI M3E + RTK (no onboard LiDAR),
-POI sectors per \flightW{}, sphere anchors for evaluation only.
-\TODO{field campaigns A--C: site, firmware, survey, flight logs}
+\subsection{Experimental setup}
+The field campaign uses two roadside Ruby-128 LiDARs at 10\,Hz on diagonal
+intersection posts ($\sim$70\,m baseline, 3--6\,m mounting height, near-zero FOV
+overlap), and a DJI M3E + RTK UAV with no onboard LiDAR.
+\TODO{campaign A: site name, coordinates, post survey, Ruby firmware}
+The UAV flies serial POI tidal-lock sectors matching \flightW{}: NE sector, a
+$\geq$10\,s handoff overlap, then SW sector.
+The flight plan includes a spiral climb / descent to excite pitch while preserving
+the sector lock.
+\TODO{campaign B: flight logs, POI timing, weather, yaw\_cv and pitch statistics}
 
-\subsection{Sphere-anchor evaluation protocol (method, not calibration)}
-Survey sphere centers $\Rightarrow$ truth; run board-free once; report
-$\Delta$trans, $\Delta$rot, center-reg vs.\ spheres.
+\subsection{Sphere-anchor truth protocol (evaluation only)}
+Static matte spheres provide the ground-truth ruler.
+Sphere centers in the world frame are surveyed by total station (millimeter-scale
+truth), while sphere centers in each LiDAR frame are obtained from the sealed
+point-cloud sphere extraction and center-fitting chain.
+An Umeyama alignment between surveyed sphere centers and LiDAR-frame fitted centers
+gives an independent reference pose $T_{L_\ell W}^{\mathrm{sphere}}$ for each post.
+The board-free pipeline is then run once on UAV body clusters only, producing
+$T_{L_\ell W}^{\mathrm{bf}}$.
+We report $\Delta$trans, $\Delta$rot, and center-reg between
+$T_{L_\ell W}^{\mathrm{bf}}$ and $T_{L_\ell W}^{\mathrm{sphere}}$.
+The two pipelines do not share target observations or estimator state: spheres define
+truth, not calibration inputs.
+\TODO{campaign C: total-station sphere uncertainty budget and sphere layout}
+
+\subsection{Coherent-bias replay protocol}
+Campaign D tests the relative-extrinsic common-mode claim without requiring repeated
+flights.
+The raw base-station observations (e.g., D-RTK 2) are retained; the same UAV data are
+reprocessed after deliberately offsetting the base-station coordinates by a known
+horizontal/vertical vector.
+This replay injects a known coherent RTK bias into both sector trajectories.
+We compare the induced drift of the two absolute poses with the drift of the composed
+relative pose and report the rel/abs trace ratio against the simulation reference
+(0.247$\pm$0.12$\times$).
+Network RTK logs, when available, serve as a cross-check rather than the primary
+coherent-bias experiment.
+\TODO{campaign D: base-station offset vector, replay settings, network-RTK cross-check}
 
 \subsection{Results (placeholder)}
 Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext} and
@@ -24,14 +55,15 @@ hardware evidence; no field numbers are claimed in this draft.
 
 \begin{table}[!t]
   \centering
-  \caption{Field board-free accuracy vs.\ sphere-anchor ground truth (placeholder;
-  spheres are evaluation rulers only, not calibration inputs).}
+  \caption{Campaign A: field board-free accuracy vs.\ total-station sphere-anchor
+  ground truth (placeholder; spheres are evaluation rulers only, not calibration
+  inputs).}
   \label{tab:field_boardfree}
   \footnotesize
   \colfit{%
   \begin{tabular}{@{}lccc@{}}
     \toprule
-    Post & $\Delta$trans & $\Delta$rot & c-reg \\
+    Post & $\Delta$trans [mm] & $\Delta$rot [$^\circ$] & c-reg [mm] \\
     \midrule
     NE & \TODO{campaign A: NE $\Delta$trans} &
          \TODO{campaign A: NE $\Delta$rot} &
@@ -45,19 +77,20 @@ hardware evidence; no field numbers are claimed in this draft.
 
 \begin{table*}[!t]
   \centering
-  \caption{Field test of coherent-bias cancellation in relative extrinsics
-  (placeholder; simulation reference is $\approx$0.25$\times$ under a coherent-bias
-  assumption).}
+  \caption{Campaign D: field replay test of coherent-bias attenuation in relative
+  extrinsics (placeholder; simulation reference is mean$\pm$std over seeds).}
   \label{tab:field_relext}
   \footnotesize
   \pagefit{%
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.42\textwidth}cc@{}}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.34\textwidth}ccc@{}}
     \toprule
-    Metric & Sim. & Field \\
+    Metric & Protocol & Sim. ref. & Field \\
     \midrule
-    rel/abs trace ratio & 0.247$\pm$0.12$\times$ & \TODO{campaign D: rel/abs ratio} \\
-    $r(\|\delta p\|_{\mathrm{NE}},\|\delta p\|_{\mathrm{SW}})$ & 1.00 & \TODO{campaign D: correlation} \\
-    center-reg residual & --- & \TODO{campaign D: c-reg residual} \\
+    Base-station offset & replay same data & --- & \TODO{campaign D: $\Delta p_{\mathrm{base}}$} \\
+    Coherent rel/abs trace ratio & shifted base coordinates & 0.247$\pm$0.12$\times$ & \TODO{campaign D: coherent rel/abs} \\
+    White-noise rel/abs trace ratio & uncorrelated/no-shift control & 3.05$\pm$0.16$\times$ & \TODO{campaign D: white rel/abs} \\
+    Segment correlation $r(\|\delta p\|_{\mathrm{NE}},\|\delta p\|_{\mathrm{SW}})$ & coherent / white & 1.00 / 0.40 & \TODO{campaign D: correlation} \\
+    center-reg residual & replayed relative pose & --- & \TODO{campaign D: c-reg residual} \\
   \bottomrule
   \end{tabular}%
   }
@@ -65,17 +98,21 @@ hardware evidence; no field numbers are claimed in this draft.
 
 \subsection{Research questions for field (results pending)}
 \begin{enumerate}
-  \item \textbf{Real point-cloud bias magnitude:} does empirical $\mathbf{b}_B(u_B)$
-    on live data match simulation field shape?
+  \item \textbf{Real point-cloud bias field:} does empirical $\mathbf{b}_B(u_B)$ on
+    live data match the magnitude and shape of the simulation bias field in
+    Fig.~\ref{fig:mechanism}(a)?
     \TODO{field campaign B: per-epoch bias vs $u_B$ scatter plot data}
-  \item \textbf{Board-free field accuracy:} centimeter-level per-post error at
-    intersection scale (both diagonal sectors)?
+  \item \textbf{Board-free field accuracy:} what per-post error is achieved at
+    intersection scale? Because simulation already reports 30$\pm$13\,mm under ideal
+    conditions, 40--80\,mm hardware error would be a plausible field outcome rather
+    than a contradiction.
     \TODO{field campaign A: Table~\ref{tab:field_boardfree} cells}
-  \item \textbf{Coherent-bias residual:} is field rel/abs attenuation weaker than
-    the simulation $\approx$0.25$\times$ ratio?
+  \item \textbf{Coherent-bias residual:} does base-station-offset replay show
+    relative-pose attenuation comparable to, or weaker than, the simulation
+    $\approx$0.25$\times$ ratio?
     \TODO{field campaign D: Table~\ref{tab:field_relext} cells}
   \item \textbf{POI flight feasibility:} can operators execute tidal-lock sectors
-    without degrading RTK or safety margins?
+    with $\geq$10\,s handoff overlap while preserving RTK quality and gate statistics?
     \TODO{field campaign B: POI execution notes + gate yaw\_cv statistics}
 \end{enumerate}
 

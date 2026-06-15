@@ -19,22 +19,17 @@ $\approx$3.05$\times$.
 Sec.~\ref{sec:field} and remains to be filled.
 
 \subsection{Limitations}
-\begin{itemize}
-  \item \textbf{Airframe model:} simulation uses a single M3E box hull; other UAV
-    geometries may alter $\mathbf{b}_B(u_B)$.
-  \item \textbf{Constant $\bar{\mathbf{b}}$ premise} depends on aspect-control quality
-    (POI lock / $u_B$ dispersion); poor lock re-expands the field.
-  \item \textbf{Gate threshold} ($0.65$) is a conservative simulation operating point
-    on a smooth identifiability transition (Fig.~\ref{fig:mechanism}(c)), not a
-    phase-transition kink; field transfer requires validation.
-  \item \textbf{Ground-truth chain:} field accuracy will depend on sphere survey
-    quality, RTK logs, and time synchronization; Sec.~\ref{sec:field} intentionally
-    keeps these cells open until measured.
-  \item \textbf{RTK quality and execution:} drift, colored noise, wind, and POI
-    tracking errors are only partially modeled.
-  \item \textbf{Field sign-off} is pending (Sec.~\ref{sec:field}); all accuracy claims
-    outside Sec.~\ref{sec:field} are simulation-scoped.
-\end{itemize}
+Simulation uses a single M3E box hull; other UAV geometries may alter
+$\mathbf{b}_B(u_B)$.
+The constant-$\bar{\mathbf{b}}$ premise depends on POI/aspect-control quality, and
+poor lock re-expands the field.
+The $0.65$ gate is a conservative operating point on a smooth transition
+(Fig.~\ref{fig:mechanism}(c)), not a phase-transition kink.
+Field scoring uses total-station sphere-center surveys with millimeter-scale truth
+(Sec.~\ref{sec:field}), but residual uncertainty remains from sphere fitting,
+synchronization, survey bookkeeping, RTK drift/colored noise, wind, and POI tracking.
+All non-field accuracy claims are simulation-scoped until Sec.~\ref{sec:field} is
+filled.
 
 \subsection{Future work}
 Field campaigns A--D (Tables~\ref{tab:field_boardfree}--\ref{tab:field_relext});

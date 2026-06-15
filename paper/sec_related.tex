@@ -1,35 +1,23 @@
 \section{Related Work}
 \label{sec:related}
 
-\subsection{Continuous-time and spline-based calibration}
-Continuous-time trajectory representations coupled with batch factor-graph
-optimization are standard for multi-sensor extrinsic calibration
+\subsection{Calibration architectures and roadside deployment}
+Continuous-time trajectory representations with batch factor-graph optimization are
+standard for multi-sensor extrinsic calibration
 \cite{furgale2013unified,rehder2016kalibr}.
-We use this lineage only for RTK-anchored trajectory fitting; the distinction is the
-deliberate separation between shared Stage-1 and independent per-LiDAR Stage-2 solves.
+We use this lineage for RTK-anchored trajectory fitting, but deliberately separate
+shared Stage-1 from independent per-LiDAR Stage-2 solves.
+Infrastructure sensing motivates long-baseline, low-overlap roadside layouts
+\cite{yu2022dairv2x}; unlike work that assumes overlap or shared targets, we target
+the diagonal-post regime ($\sim$70\,m baseline, negligible FOV overlap).
 
-\subsection{Roadside, V2X, and multi-LiDAR systems}
-Infrastructure sensing at intersections motivates long-baseline, low-overlap
-multi-LiDAR layouts \cite{yu2022dairv2x}.
-Prior work often assumes overlapping views or shared calibration targets.
-This paper targets the diagonal-post regime ($\sim$70\,m baseline, negligible FOV
-overlap) via UAV-RTK anchoring and separable solves.
-
-\subsection{Target-based vs.\ targetless calibration}
-Target-based LiDAR--camera and LiDAR--IMU calibration remains the industrial default
-\cite{furgale2013unified,rehder2016kalibr}.
-Targetless methods exploit scene structure or motion constraints; body-centric
-board-free calibration uses the vehicle hull as a primitive without a physical board.
-Here the UAV hull is the calibration target; spheres are field evaluation rulers only,
-not a fallback calibration pipeline (Sec.~\ref{sec:field}).
-
-\subsection{UAV-assisted and cooperative calibration}
-UAV platforms with RTK positioning enable mobile anchoring of roadside sensors.
-Related trajectory-matching approaches align sensor frames via shared motion
-\cite{ren2023trajmatch}; centroid-only board-free paths correspond to what such a
-pipeline would recover from the same detections without bias modeling.
-Our difference is the failure mechanism: even with a perfect trajectory, board-free
-calibration fails without attitude excitation.
+\subsection{Board-free vs.\ target and trajectory matching}
+Target-based LiDAR--camera/LiDAR--IMU calibration remains the default
+\cite{furgale2013unified,rehder2016kalibr}; here the UAV hull is the calibration
+target, while spheres are field evaluation rulers only (Sec.~\ref{sec:field}).
+Trajectory-matching methods align sensor frames through shared motion
+\cite{ren2023trajmatch}; our difference is the failure mechanism: even with a perfect
+trajectory, centroid-only board-free calibration fails without attitude excitation.
 
 \subsection{Relation to prior work on degeneracy}
 Anonymous prior work on coplanar multi-LiDAR setups identifies \emph{geometric rank
