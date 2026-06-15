@@ -1,0 +1,5 @@
+# Pin C/C++ source line endings to LF so WSL/editors cannot silently
+# renormalize CRLF blobs into massive no-logic diffs.
+*.cpp text eol=lf
+*.h   text eol=lf
+*.hpp text eol=lf
